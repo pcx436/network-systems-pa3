@@ -69,14 +69,14 @@ int main(int argc, char **argv) {
 	}
 	port = atoi(argv[1]);
 
-	// create the socket we'll use
-	if((listenfd = open_listenfd(port)) < 0) {
-		perror("Could not open socket");
+	if (port < 1 || port > 65535) {
+		perror("Invalid port number provided");
 		return 1;
 	}
 
-	if(!isDirectory("./www/")){
-		perror("Missing ./www directory");
+	// create the socket we'll use
+	if((listenfd = open_listenfd(port)) < 0) {
+		perror("Could not open socket");
 		return 1;
 	}
 
@@ -110,21 +110,12 @@ void *thread(void *vargp) {
  * @param connfd  connection file descriptor that represents the response socket
  */
 void respond(int connfd) {
-	size_t bytesRead;  // number of bytes read from the user / bytes read from file
-	long fileSize;  // size of the file
-	char *exeResolved = NULL, *absoluteURI = NULL;  // used in path resolution
-	char errorMessage[] = "%s 500 Internal Server Error\r\n";
+	char errorMessage[] = "%s 400 Bad Request\r\n";
 	char receiveBuffer[MAXLINE], *response = (char *)malloc(MAXBUF);
-	char *method, *uri, *version, *savePtr, *relativeURI = (char *)malloc(PATH_MAX), *cleanedURI;
-	char *contentType;
-	FILE *fp;
-
-	// get the absolute path of the web data directory
-	exeResolved = realpath("./www/", NULL);
+	char *method, *uri, *version, *savePtr, *trashCan;
 
 	bzero(receiveBuffer, MAXLINE);  // fill receiveBuffer with \0
 	bzero(response, MAXBUF);  // fill response with \0
-	bzero(relativeURI, PATH_MAX);
 
 	// read in some bytes from the user
 	read(connfd, receiveBuffer, MAXLINE);
@@ -134,68 +125,14 @@ void respond(int connfd) {
 	method = strtok_r(receiveBuffer, " ", &savePtr);
 	uri = strtok_r(NULL, " ", &savePtr);
 	version = strtok_r(NULL, "\n", &savePtr);
+	trashCan = strtok_r(NULL, " ", &savePtr);  // get "
 	trimSpace(method);
 	trimSpace(uri);
 	trimSpace(version);
 
 	// If the user provided the GET method, request URI, and HTTP version
-	if (method && uri && version && strcmp(method, "GET") == 0){  // happy path
-		// relative path to www folder (add slash at beginning if it's missing it
-		if(uri[0] == '/') {
-			sprintf(relativeURI, "./www%s", uri);
-		} else {
-			sprintf(relativeURI, "./www/%s", uri);
-		}
-
+	if (method && uri && version && strcmp(method, "GET") == 0) {  // happy path
 		// get absoluteURI of request and ensure it is not trying to escape
-		absoluteURI = realpath(relativeURI, NULL);
-
-		if (absoluteURI && strncmp(exeResolved, absoluteURI, strlen(exeResolved)) == 0) {
-			/*
-			 * Verify file presence steps:
-			 * Determine if path is a directory
-			 * If it is, look for URI/index.html and URI/index.htm
-			 */
-			cleanedURI = isDirectory(absoluteURI);  // check if the file is a directory
-			free(absoluteURI);
-
-			contentType = getType(cleanedURI);  // get MIME type of requested content
-			fp = fopen(cleanedURI, "r");
-
-			// if we successfully opened the file
-			if (cleanedURI && contentType && fp) {
-				// get file size
-				fseek(fp, 0L, SEEK_END);
-				fileSize = ftell(fp);
-				fseek(fp, 0L, SEEK_SET);
-
-				// build and send initial header response
-				sprintf(response, "%s %d Document Follows\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n", version, HTTP_OK, contentType, fileSize);
-				send(connfd, response, strlen(response), 0);
-
-				// read lines from the file and send them until an error occurs or we finish reading
-				do {
-					bzero(response, MAXBUF);  // clear buffer
-
-					bytesRead = fread(response, sizeof(char), MAXBUF, fp);  // read file
-
-					if (send(connfd, response, bytesRead, 0) == -1) {  // send info
-						perror("[-]Error in sending file.");
-						break;
-					}
-				} while(bytesRead == MAXBUF);  // send while sending buffer is full when reading
-
-				bzero(response, MAXBUF);  // clear buffer
-				fclose(fp);  // done reading, close file
-				free(cleanedURI);  // free URI
-			} else {
-				// directory error happened, we could not determine file type, or could not open file
-				sprintf(response, errorMessage, version);
-			}
-		} else {
-			// attempted directory escaping, return error
-			sprintf(response, errorMessage, version);
-		}
 	} else { // Invalid HTTP request, assume version 1.1
 		sprintf(response, errorMessage, "HTTP/1.1");
 	}
@@ -206,11 +143,6 @@ void respond(int connfd) {
 
 	// free remaining variables
 	free(response);
-	free(exeResolved);
-
-	// IDE said it might already be freed?
-	if(relativeURI)
-		free(relativeURI);
 }
 
 /* 
