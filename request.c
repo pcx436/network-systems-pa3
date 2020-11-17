@@ -31,7 +31,7 @@ void readRequest(int connfd, request *req) {
 		if (currentReadNum > 0) {
 			numReceived += currentReadNum;
 
-			if (numReceived > MAXBUF) {
+			while (numReceived > currentMax) {  // grow buffer to meet demand of newly read data
 				currentMax *= 2;
 				req->originalBuffer = (char *) realloc(req->originalBuffer, sizeof(char) * currentMax);
 
