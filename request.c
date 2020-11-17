@@ -52,9 +52,7 @@ void readRequest(int connfd, request *req) {
 
 void parseRequest(request *req) {
 	char *tmp = NULL, *savePtr = NULL, *finder = NULL;
-	req->postProcessBuffer = (char *)malloc(strlen(req->originalBuffer));
-
-	bzero(req->postProcessBuffer, strlen(req->originalBuffer));
+	req->postProcessBuffer = (char *)malloc(strlen(req->originalBuffer) + 1);
 
 	strcpy(req->postProcessBuffer, req->originalBuffer);
 
@@ -113,8 +111,9 @@ cacheEntry *forwardRequest(request *req) {
 	}
 
 	// allocate for the cache
-	cEntry->requestURL = (char *)malloc(strlen(req->requestPath));
+	cEntry->requestURL = (char *)malloc(strlen(req->requestPath) + 1);
 	cEntry->response = (char *)malloc(sizeof(char) * MAXBUF);
+	gettimeofday(&cEntry->t, NULL);
 	strcpy(cEntry->requestURL, req->requestPath);
 
 	// forward request
