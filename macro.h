@@ -9,6 +9,5 @@
 #define MAXBUF      		8192  /* max I/O buffer size */
 #define LISTENQ     		1024  /* second argument to listen() */
 #define MAX_CACHE_ENTRIES   30
-#define MAX_THREADS         500
 
 #endif //HTTPPROXY_MACRO_H
