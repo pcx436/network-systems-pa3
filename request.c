@@ -158,6 +158,26 @@ cacheEntry *forwardRequest(request *req) {
 
 	return cEntry;
 }
+
+void sendResponse(int connfd, cacheEntry *cEntry) {
+	char *socketBuffer = (char *)malloc(sizeof(char) * MAXBUF);
+	int bytesCopied = 0, bytesSent;
+
+	do {
+		strcpy(socketBuffer, cEntry->response + bytesCopied);
+
+		bytesSent = send(connfd, socketBuffer, MAXBUF, 0);
+
+		if (bytesSent < 0) {
+			perror("Error sending data back to client");
+			bytesCopied = strlen(cEntry->response);  // break loop
+		} else {
+			bytesCopied += bytesSent;  // Should this be bytesCopied += MAXBUF??
+		}
+	} while (bytesCopied < strlen(cEntry->response));
+	free(socketBuffer);
+}
+
 /**
  * Removes trailing spaces from a string.
  * @param str The string to trim space from.
