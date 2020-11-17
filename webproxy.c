@@ -33,19 +33,19 @@ void interruptHandler(int useless) {
 
 
 int main(int argc, char **argv) {
-	int listenfd, *connfdp, *cacheSize = (int *)malloc(sizeof(int)), port, cacheIndex, threadCount = 0;
+	int *connfdp;
+	int listenfd, port, index, threadCount = 0, threadArraySize = MAX_THREADS, cacheSize = 0;
 	socklen_t clientlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientaddr;
 	struct threadParams *tps;
-	pthread_mutex_t cacheMutex;
-	sem_t numThreadsRunning, numThreadsAvailable;
-	pthread_t *threadIDs = (pthread_t *)malloc(sizeof(pthread_t) * MAX_THREADS);
+	pthread_mutex_t cacheMutex, threadMutex;
+	pthread_t *threadIDs = (pthread_t *)malloc(sizeof(pthread_t) * threadArraySize);
+	cacheEntry *cache;
 
 	// init shared content
 	pthread_mutex_init(&cacheMutex, NULL);
-	*cacheSize = 0;
-	sem_init(&numThreadsAvailable, 0, 500);
-	sem_init(&numThreadsRunning, 0, 0);
+	pthread_mutex_init(&threadMutex, NULL);
+	cache = (cacheEntry *)malloc(sizeof(cacheEntry) * MAX_CACHE_ENTRIES);
 
 	// register signal handler
 	signal(SIGINT, interruptHandler);
@@ -75,25 +75,38 @@ int main(int argc, char **argv) {
 		// If received connection, spawn thread. Else, free allocated memory
 		if ((*connfdp = accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen)) > 0){
 			tps = (threadParams *)malloc(sizeof(threadParams));
-			tps->cacheMutex = cacheMutex;
-			tps->cacheSize = cacheSize;
+			tps->cacheMutex = &cacheMutex;
+			tps->threadMutex = &threadMutex;
+			tps->cache = cache;
+			tps->cacheSize = &cacheSize;
 			tps->connfd = connfdp;
+			tps->numThreads = &threadCount;
 
-			sem_wait(&numThreadsAvailable);
+			if (threadCount == threadArraySize) {
+				threadArraySize *= 2;
+				threadIDs = (pthread_t *)realloc(threadIDs, sizeof(pthread_t) * threadArraySize);
+			}
+
 			pthread_create(&threadIDs[threadCount++], NULL, thread, (void *)tps);
 		}
 		else
 			free(connfdp);
 	}
 
-	// clear the cache
-	for (cacheIndex = 0; cacheIndex < )
-
-	free(cacheSize);
+	// join all threads
+	for(index = 0; index < threadCount; index++)
+		pthread_join(threadIDs[index], NULL);
 	free(threadIDs);
+
+	// clear the cache
+	for (index = 0; index < cacheSize; index++) {
+		free(cache[index].requestURL);
+		free(cache[index].response);
+	}
+	free(cache);
+
 	pthread_mutex_destroy(&cacheMutex);
-	sem_destroy(&numThreadsAvailable);
-	sem_destroy(&numThreadsRunning);
+	pthread_mutex_destroy(&threadMutex);
 	return 0;
 }
 
@@ -101,13 +114,15 @@ int main(int argc, char **argv) {
 void *thread(void *vargp) {
 	threadParams *tps = (threadParams *)vargp;
 	int connfd = *tps->connfd;  // get the connection file descriptor
-//	pthread_detach(pthread_self());  // detach the thread
 	free(tps->connfd);  // don't need that anymore since it was just an int anyway
 
 	respond(connfd);  // run main thread function
 	free(vargp);
 
 	close(connfd);  // close the socket
+	pthread_mutex_lock(tps->threadMutex);  // no idea if arithmetic operations are thread safe
+	*tps->numThreads--;
+	pthread_mutex_unlock(tps->threadMutex);
 	return NULL;
 }
 
