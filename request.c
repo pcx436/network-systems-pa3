@@ -87,6 +87,77 @@ void parseRequest(request *req) {
 	}
 }
 
+cacheEntry *forwardRequest(request *req) {
+	int sock, bytesCopied = 0, bytesSent, serverlen, totalReceived = 0, bytesReceived, entrySize = MAXBUF;
+	cacheEntry *cEntry = (cacheEntry *)malloc(sizeof(cacheEntry));
+	struct sockaddr_in server;
+	struct hostent *hostLookup;
+	char *socketBuffer = (char *)malloc(sizeof(char) * MAXBUF);
+	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("Couldn't open socket to destination");
+		return NULL;
+	}
+
+	server.sin_addr.s_addr = inet_addr("0.0.0.0");
+	server.sin_family = AF_INET;
+	server.sin_port = htons(req->port);  // pick random t
+
+	hostLookup = gethostbyname(req->host);
+	if (hostLookup == NULL) { // FIXME: need to respond properly to unknown host
+		perror("Could not find hostname of specified host");
+		return NULL;
+	}
+	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+		perror("Failed to connect to destination");
+		return NULL;
+	}
+
+	// allocate for the cache
+	cEntry->requestURL = (char *)malloc(strlen(req->requestPath));
+	cEntry->response = (char *)malloc(sizeof(char) * MAXBUF);
+	strcpy(cEntry->requestURL, req->requestPath);
+
+	// forward request
+	do {
+		strcpy(socketBuffer, req->originalBuffer + bytesCopied);
+
+		bytesSent = send(sock, socketBuffer, MAXBUF, 0);
+		if (bytesSent < 0) {
+			perror("Error sending data");
+		} else {
+			bytesCopied += bytesSent;  // Should this be bytesCopied += MAXBUF??
+		}
+	} while (strstr(socketBuffer, "\r\n\r\n") == NULL && bytesSent >= 0);
+
+	// receive response
+	do {
+		bzero(socketBuffer, MAXBUF);
+		bytesReceived = recv(sock, socketBuffer, MAXBUF, 0);
+
+		if (bytesReceived < 0) {
+			perror("Error reading response");
+		} else {
+			totalReceived += bytesReceived;
+
+			while (entrySize < totalReceived) {
+				entrySize *= 2;
+
+				cEntry->response = (char *)realloc(cEntry->response, sizeof(char) * entrySize);
+				if (cEntry->response == NULL) {
+					perror("Failed growing memory for new cache entry");
+					bytesReceived = MAXBUF - 1;  // breaks loop
+				}
+			}
+
+			strcat(cEntry->response, socketBuffer);
+		}
+
+	} while (bytesReceived == MAXBUF);
+	close(sock);
+	free(socketBuffer);
+
+	return cEntry;
+}
 /**
  * Removes trailing spaces from a string.
  * @param str The string to trim space from.
