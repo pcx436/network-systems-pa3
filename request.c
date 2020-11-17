@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
 #include "request.h"
 
 void readRequest(int connfd, request *req) {
