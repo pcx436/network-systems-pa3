@@ -16,10 +16,10 @@
 
 void readRequest(int connfd, request *req) {
 	int currentMax = MAXBUF;
-	char *recvBuffer = malloc(sizeof(char) * currentMax), *buffer = req->originalBuffer;
-	buffer = malloc(sizeof(char) * currentMax);
+	char *recvBuffer = malloc(sizeof(char) * MAXBUF);
+	req->originalBuffer = (char *)malloc(sizeof(char) * currentMax);
 
-	bzero(buffer, currentMax);  // fill receiveBuffer with \0
+	bzero(req->originalBuffer, currentMax);  // fill receiveBuffer with \0
 	bzero(recvBuffer, currentMax);
 	int numReceived = 0, currentReadNum;
 
@@ -33,20 +33,20 @@ void readRequest(int connfd, request *req) {
 
 			if (numReceived > MAXBUF) {
 				currentMax *= 2;
-				buffer = (char *) realloc(buffer, sizeof(char) * currentMax);
+				req->originalBuffer = (char *) realloc(req->originalBuffer, sizeof(char) * currentMax);
 
-				if (buffer == NULL) {
+				if (req->originalBuffer == NULL) {
 					perror("Failed to allocate buffer to meet client demands.");
 					exit(1);
 				}
 			}
 
-			strcat(buffer, recvBuffer);
+			strcat(req->originalBuffer, recvBuffer);
 		} else if (currentReadNum < 0) {
 			perror("Error reading data from user.");
 			exit(1);
 		}
-	} while (strstr(buffer, "\r\n\r\n") == NULL && currentReadNum > 0);  // not done reading
+	} while (strstr(req->originalBuffer, "\r\n\r\n") == NULL && currentReadNum > 0);  // not done reading
 	free(recvBuffer);
 }
 
