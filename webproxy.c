@@ -116,51 +116,24 @@ void *thread(void *vargp) {
 	int connfd = *tps->connfd;  // get the connection file descriptor
 	free(tps->connfd);  // don't need that anymore since it was just an int anyway
 
-	respond(connfd);  // run main thread function
-	free(vargp);
+	char errorMessage[] = "%s 400 Bad Request\r\n";
+	request *req = (request *)malloc(sizeof(request));
+	readRequest(connfd, req);
+	parseRequest(req);
+	cacheEntry *serverResponse = forwardRequest(req);
+
+	if (serverResponse != NULL)
+		sendResponse(connfd, serverResponse);
 
 	close(connfd);  // close the socket
 	pthread_mutex_lock(tps->threadMutex);  // no idea if arithmetic operations are thread safe
 	*tps->numThreads--;
 	pthread_mutex_unlock(tps->threadMutex);
+	free(tps);
 	return NULL;
 }
 
-/**
- * Responds to any HTTP requests.
- * @param connfd  connection file descriptor that represents the response socket
- */
-void respond(int connfd) {
-	char errorMessage[] = "%s 400 Bad Request\r\n";
-	char receiveBuffer[MAXLINE], *response = (char *)malloc(MAXBUF);
-	char *method, *uri, *version, *savePtr, *trashCan;
-
-	bzero(receiveBuffer, MAXLINE);  // fill receiveBuffer with \0
-	bzero(response, MAXBUF);  // fill response with \0
-
-	// read in some bytes from the user
-	read(connfd, receiveBuffer, MAXLINE);
-
-	// logic time!
-	// get HTTP request method, request URI, and request version separately
-
-
-	// If the user provided the GET method, request URI, and HTTP version
-	if (method && uri && version && strcmp(method, "GET") == 0) {  // happy path
-		// get absoluteURI of request and ensure it is not trying to escape
-	} else { // Invalid HTTP request, assume version 1.1
-		sprintf(response, errorMessage, "HTTP/1.1");
-	}
-
-	if (strlen(response) > 0){
-		send(connfd, response, strlen(response), 0);
-	}
-
-	// free remaining variables
-	free(response);
-}
-
-/* 
+/*
  * open_listenfd - open and return a listening socket on port
  * Returns -1 in case of failure 
  */
