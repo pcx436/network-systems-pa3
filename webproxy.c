@@ -4,38 +4,20 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
 #include <string.h>      /* for fgets */
 #include <strings.h>     /* for bzero, bcopy */
 #include <unistd.h>      /* for read, write */
 #include <sys/socket.h>  /* for socket use */
 #include <netinet/in.h>
 #include <pthread.h>
-#include <dirent.h>
-#include <errno.h>
-#include <ctype.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <semaphore.h>
 
-#define MAXLINE     8192  /* max text line length */
-#define MAXBUF      8192  /* max I/O buffer size */
-#define LISTENQ     1024  /* second argument to listen() */
-#define HTTP_OK     200
-#define COUNT_TYPES 9
+#include "macro.h"
+#include "request.h"
 
 static volatile int killed = 0;
-
-char *contentTypes[COUNT_TYPES][2] = {
-		{".htm", "text/html"},
-		{".html", "text/html"},
-		{".txt", "text/plain"},
-		{".png", "image/png"},
-		{".gif", "image/gif"},
-		{".jpg", "image/jpg"},
-		{".ico", "image/x-icon"},
-		{".css", "text/css"},
-		{".js", "application/javascript"}
-};
 
 int open_listenfd(int port);
 
@@ -43,21 +25,27 @@ void respond(int connfd);
 
 void *thread(void *vargp);
 
-char *getType(char *uri);
-
-char * isDirectory(char *uri);
-
 void trimSpace(char *str);
 
 void interruptHandler(int useless) {
 	killed = 1;
 }
 
+
 int main(int argc, char **argv) {
-	int listenfd, *connfdp, port;
+	int listenfd, *connfdp, *cacheSize = (int *)malloc(sizeof(int)), port, cacheIndex, threadCount = 0;
 	socklen_t clientlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientaddr;
-	pthread_t tid;
+	struct threadParams *tps;
+	pthread_mutex_t cacheMutex;
+	sem_t numThreadsRunning, numThreadsAvailable;
+	pthread_t *threadIDs = (pthread_t *)malloc(sizeof(pthread_t) * MAX_THREADS);
+
+	// init shared content
+	pthread_mutex_init(&cacheMutex, NULL);
+	*cacheSize = 0;
+	sem_init(&numThreadsAvailable, 0, 500);
+	sem_init(&numThreadsRunning, 0, 0);
 
 	// register signal handler
 	signal(SIGINT, interruptHandler);
@@ -82,24 +70,42 @@ int main(int argc, char **argv) {
 
 	// while SIGINT not received
 	while (!killed) {
-		connfdp = malloc(sizeof(int));
+		connfdp = (int *)malloc(sizeof(int));
 
 		// If received connection, spawn thread. Else, free allocated memory
-		if ((*connfdp = accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen)) > 0)
-			pthread_create(&tid, NULL, thread, connfdp);
+		if ((*connfdp = accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen)) > 0){
+			tps = (threadParams *)malloc(sizeof(threadParams));
+			tps->cacheMutex = cacheMutex;
+			tps->cacheSize = cacheSize;
+			tps->connfd = connfdp;
+
+			sem_wait(&numThreadsAvailable);
+			pthread_create(&threadIDs[threadCount++], NULL, thread, (void *)tps);
+		}
 		else
 			free(connfdp);
 	}
+
+	// clear the cache
+	for (cacheIndex = 0; cacheIndex < )
+
+	free(cacheSize);
+	free(threadIDs);
+	pthread_mutex_destroy(&cacheMutex);
+	sem_destroy(&numThreadsAvailable);
+	sem_destroy(&numThreadsRunning);
 	return 0;
 }
 
 /* thread routine */
 void *thread(void *vargp) {
-	int connfd = *((int *) vargp);  // get the connection file descriptor
-	pthread_detach(pthread_self());  // detach the thread
-	free(vargp);  // don't need that anymore since it was just an int anyway
+	threadParams *tps = (threadParams *)vargp;
+	int connfd = *tps->connfd;  // get the connection file descriptor
+//	pthread_detach(pthread_self());  // detach the thread
+	free(tps->connfd);  // don't need that anymore since it was just an int anyway
 
 	respond(connfd);  // run main thread function
+	free(vargp);
 
 	close(connfd);  // close the socket
 	return NULL;
@@ -122,13 +128,7 @@ void respond(int connfd) {
 
 	// logic time!
 	// get HTTP request method, request URI, and request version separately
-	method = strtok_r(receiveBuffer, " ", &savePtr);
-	uri = strtok_r(NULL, " ", &savePtr);
-	version = strtok_r(NULL, "\n", &savePtr);
-	trashCan = strtok_r(NULL, " ", &savePtr);  // get "
-	trimSpace(method);
-	trimSpace(uri);
-	trimSpace(version);
+
 
 	// If the user provided the GET method, request URI, and HTTP version
 	if (method && uri && version && strcmp(method, "GET") == 0) {  // happy path
@@ -186,75 +186,3 @@ int open_listenfd(int port) {
 	return listenfd;
 } /* end open_listenfd */
 
-/**
- * Determine Content-Type of provided URI
- * @param uri The path to the local file that we want to determine the type of
- * @return char * representing MIME type or NULL in case of error.
- */
-char *getType(char *uri) {
-	int i;
-	unsigned long extensionLength;
-	char *currentExtension, *currentType;
-
-	// If we cannot read the file, return NULL
-	if (access(uri, R_OK) != 0)
-		return NULL;
-
-	// Loop through all types
-	for(i = 0; i < COUNT_TYPES; i++){
-		currentExtension = contentTypes[i][0];
-		currentType = contentTypes[i][1];
-		extensionLength = strlen(currentExtension);
-
-		// if extension of current MIME type matches our file
-		if (extensionLength <= strlen(uri) && strcmp(uri + strlen(uri) - extensionLength, currentExtension) == 0) {
-			return currentType;
-		}
-	}
-
-	// unfamiliar type
-	return NULL;
-}
-
-/**
- * return 0 if uri is a dir, errno otherwise
- * @param uri The path to the local file/directory
- * @return char * representing the file we're looking at or NULL in case of error.
- */
-char * isDirectory(char *uri) {
-	DIR* dir = opendir(uri);
-	char *returnedFile = (char *)malloc(PATH_MAX), *errorBuffer = (char *)malloc(MAXBUF);
-	struct dirent *ent;
-
-	bzero(returnedFile, PATH_MAX);
-
-	if (dir) {
-		// loop while finding files and haven't found default page
-		while ((ent = readdir(dir)) != NULL && strlen(returnedFile) == 0) {
-			if (strcmp(ent->d_name, "index.html") == 0 || strcmp(ent->d_name, "index.htm") == 0) {
-				sprintf(returnedFile, "%s/%s", uri, ent->d_name);
-			}
-		}
-		closedir(dir);
-	} else if (errno == ENOTDIR && access(uri, R_OK) == 0){
-		// the URI is to a file that can be read
-		strncpy(returnedFile, uri, PATH_MAX);
-	} else {
-		if(strerror_r(errno, errorBuffer, MAXBUF) == 0)
-			perror(errorBuffer);
-		else
-			perror("Failed to error????");
-	}
-	free(errorBuffer);
-	return returnedFile;
-}
-
-/**
- * Removes trailing spaces from a string.
- * @param str The string to trim space from.
- */
-void trimSpace(char *str){
-	int end = strlen(str) - 1;
-	while(isspace(str[end])) end--;
-	str[end+1] = '\0';
-}
