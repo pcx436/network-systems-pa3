@@ -75,6 +75,8 @@ void parseRequest(request *req) {
 			if (finder != NULL) {  // port number found
 				req->port = atoi(finder + 1);
 				finder[0] = '\0';
+			} else {
+				req->port = 80;
 			}
 
 			req->host = tmp;
