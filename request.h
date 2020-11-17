@@ -9,7 +9,7 @@
 #include <semaphore.h>
 #include <sys/time.h>
 
-typedef struct request {
+typedef struct requestStruct {
 	char *method;  // should always be GET
 	char *requestPath;
 	char *protocol;
@@ -19,13 +19,13 @@ typedef struct request {
 	int port;
 } request;
 
-typedef struct cacheEntry  {
+typedef struct cacheEntryStruct {
 	char *requestURL;
 	char *response;
 	struct timeval t;
 } cacheEntry;
 
-typedef struct threadParams {
+typedef struct threadParamsStruct {
 	cacheEntry *cache;
 	int *connfd;
 	int *cacheSize;
