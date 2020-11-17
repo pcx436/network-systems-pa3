@@ -34,10 +34,10 @@ void interruptHandler(int useless) {
 
 int main(int argc, char **argv) {
 	int *connfdp;
-	int listenfd, port, index, threadCount = 0, threadArraySize = MAX_THREADS, cacheSize = 0;
+	int listenfd, port, index, threadCount = 0, threadArraySize = 1, cacheSize = 0;
 	socklen_t clientlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientaddr;
-	struct threadParams *tps;
+	threadParams *tps;
 	pthread_mutex_t cacheMutex, threadMutex;
 	pthread_t *threadIDs = (pthread_t *)malloc(sizeof(pthread_t) * threadArraySize);
 	cacheEntry *cache;
@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
 	}
 
 	// join all threads
-	for(index = 0; index < threadCount; index++)
+	for (index = 0; index < threadCount; index++)
 		pthread_join(threadIDs[index], NULL);
 	free(threadIDs);
 
