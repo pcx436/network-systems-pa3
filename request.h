@@ -38,6 +38,10 @@ void readRequest(int connfd, request *req);
 
 void parseRequest(request *req);
 
+cacheEntry *forwardRequest(request *req);
+
+void sendResponse(int connfd, cacheEntry *cEntry);
+
 void trimSpace(char *s);
 
 
