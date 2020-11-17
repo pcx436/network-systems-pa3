@@ -26,12 +26,12 @@ typedef struct {
 } cacheEntry;
 
 typedef struct {
-	cacheEntry *cache;
 	int *connfd;
 	int *cacheSize;
 	int *numThreads;
 	pthread_mutex_t *cacheMutex;
 	pthread_mutex_t *threadMutex;
+	cacheEntry *cache;
 } threadParams;
 
 void readRequest(int connfd, request *req);
