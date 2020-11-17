@@ -20,9 +20,9 @@ typedef struct {
 } request;
 
 typedef struct {
+	struct timeval t;
 	char *requestURL;
 	char *response;
-	struct timeval t;
 } cacheEntry;
 
 typedef struct {
