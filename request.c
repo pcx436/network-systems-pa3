@@ -114,10 +114,9 @@ cacheEntry *forwardRequest(request *req, struct cache *cache) {
 	}
 
 	// allocate for the cache
-	cEntry->requestURL = (char *)malloc(strlen(req->requestPath) + 1);
+	cEntry->requestPath = (char *)malloc(strlen(req->requestPath) + 1);
 	cEntry->response = (char *)malloc(sizeof(char) * MAXBUF);
-	cEntry->t = time(NULL);
-	strcpy(cEntry->requestURL, req->requestPath);
+	strcpy(cEntry->requestPath, req->requestPath);
 
 	// forward request
 	do {

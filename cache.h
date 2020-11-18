@@ -10,7 +10,7 @@
 
 typedef struct {
 	time_t t;
-	char *requestURL;
+	char *requestPath;
 	char *response;
 } cacheEntry;
 
