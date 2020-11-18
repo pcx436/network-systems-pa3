@@ -13,7 +13,7 @@ char * cacheLookup(char *requestPath, struct cache *cache) {
 	pthread_mutex_lock(cache->mutex);
 
 	for(i = 0; i < *cache->size && returnValue == NULL; i++)
-		if (strcmp(requestPath, cache->array[i]->requestURL) == 0)
+		if (strcmp(requestPath, cache->array[i]->requestPath) == 0)
 			returnValue = cache->array[i]->response;
 
 	pthread_mutex_unlock(cache->mutex);
@@ -27,7 +27,7 @@ void deleteCacheEntry(char *requestPath, struct cache *cache) {
 
 	// get index of cache entry.
 	for(i = 0; i < *cache->size && foundIndex == -1; i++) {
-		if (strcmp(requestPath, cache->array[i]->requestURL) == 0) {
+		if (strcmp(requestPath, cache->array[i]->requestPath) == 0) {
 			foundIndex = i;
 			cEntry = cache->array[i];
 		}
@@ -61,7 +61,7 @@ void clearCache(struct cache *cache) {
 }
 
 void freeCacheEntry(cacheEntry *cEntry) {
-	free(cEntry->requestURL);
+	free(cEntry->requestPath);
 	free(cEntry->response);
 	free(cEntry);
 }
