@@ -11,4 +11,11 @@ typedef struct {
 	char *response;
 } cacheEntry;
 
+struct cache {
+	cacheEntry *cacheArray;
+	pthread_mutex_t *cacheMutex;
+	int *cacheSize;
+	int cacheTimeout;
+};
+
 #endif //HTTPPROXY_CACHE_H
