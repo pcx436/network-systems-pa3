@@ -3,6 +3,7 @@
 //
 
 #include "cache.h"
+#include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
 
@@ -22,6 +23,16 @@ void deleteCacheEntry(char *requestPath, struct cache *cache) {
 
 }
 
+// also acts as a destructor for the cache
 void clearCache(struct cache *cache) {
-
+	// no need to use mutex lock since this should only be called during termination of the main
+	int i;
+	for (i = 0; i < *cache->size; i++) {
+		free(cache->array[i]->requestURL);
+		free(cache->array[i]->response);
+		free(cache->array[i]);
+	}
+	free(cache->array);
+	pthread_mutex_destroy(cache->mutex);
+	free(cache);
 }
