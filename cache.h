@@ -5,6 +5,9 @@
 #ifndef HTTPPROXY_CACHE_H
 #define HTTPPROXY_CACHE_H
 
+#include <time.h>
+#include <pthread.h>
+
 typedef struct {
 	time_t t;
 	char *requestURL;
