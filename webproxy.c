@@ -84,12 +84,12 @@ int main(int argc, char **argv) {
 		// If received connection, spawn thread. Else, free allocated memory
 		if ((*connfdp = accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen)) > 0){
 			tps = (threadParams *)malloc(sizeof(threadParams));
-			tps->cacheMutex = &cacheMutex;
-			tps->threadMutex = &threadMutex;
 			tps->cache = cache;
 			tps->cacheSize = &cacheSize;
-			tps->connfd = connfdp;
+			tps->cacheMutex = &cacheMutex;
 			tps->numThreads = &threadCount;
+			tps->threadMutex = &threadMutex;
+			tps->connfd = connfdp;
 
 			if (threadCount == threadArraySize) {
 				threadArraySize *= 2;
