@@ -12,10 +12,10 @@ typedef struct {
 } cacheEntry;
 
 struct cache {
-	cacheEntry *cacheArray;
-	pthread_mutex_t *cacheMutex;
-	int *cacheSize;
-	int cacheTimeout;
+	cacheEntry *array;
+	pthread_mutex_t *mutex;
+	int *size;
+	int timeout;
 };
 
 cacheEntry *cacheLookup(char *requestPath, struct cache *cache);
