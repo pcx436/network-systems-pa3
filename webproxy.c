@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
 
 	// clear the cache
 	for (index = 0; index < cacheSize; index++) {
-		free(cache[index].requestURL);
+		free(cache[index].requestPath);
 		free(cache[index].response);
 	}
 	free(cache);
