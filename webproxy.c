@@ -34,7 +34,7 @@ void interruptHandler(int useless) {
 
 int main(int argc, char **argv) {
 	int *connfdp;
-	int listenfd, port, index, threadCount = 0, threadArraySize = 1, cacheSize = 0;
+	int listenfd, port, index, threadCount = 0, threadArraySize = 1, cacheSize = 0, cacheTimeout = 60;
 	socklen_t clientlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientaddr;
 	threadParams *tps;
@@ -51,11 +51,20 @@ int main(int argc, char **argv) {
 	signal(SIGINT, interruptHandler);
 
 	// check for incorrect usage
-	if (argc != 2) {
-		fprintf(stderr, "usage: %s <port>\n", argv[0]);
+	if (argc != 2 && argc != 3) {
+		fprintf(stderr, "usage: %s <port> [timeout]\n", argv[0]);
 		exit(0);
+	} else {
+		port = atoi(argv[1]);
+		if (argc == 3) {
+			cacheTimeout = atoi(argv[2]);
+
+			if (cacheTimeout <= 0) {
+				perror("Invalid cache timeout. Must be greater than 0");
+				return 1;
+			}
+		}
 	}
-	port = atoi(argv[1]);
 
 	if (port < 1 || port > 65535) {
 		perror("Invalid port number provided");
