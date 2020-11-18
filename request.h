@@ -33,7 +33,7 @@ void readRequest(int connfd, request *req);
 
 void parseRequest(request *req);
 
-cacheEntry *forwardRequest(request *req);
+cacheEntry *forwardRequest(request *req, struct cache *cache);
 
 void sendResponse(int connfd, cacheEntry *cEntry);
 
