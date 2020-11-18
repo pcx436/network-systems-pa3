@@ -20,7 +20,31 @@ char * cacheLookup(char *requestPath, struct cache *cache) {
 }
 
 void deleteCacheEntry(char *requestPath, struct cache *cache) {
+	pthread_mutex_lock(cache->mutex);
+	int i, foundIndex = -1;
+	cacheEntry *cEntry = NULL;
 
+	// get index of cache entry.
+	for(i = 0; i < *cache->size && foundIndex == -1; i++) {
+		if (strcmp(requestPath, cache->array[i]->requestURL) == 0) {
+			foundIndex = i;
+			cEntry = cache->array[i];
+		}
+	}
+
+	// didn't find it.
+	if (foundIndex == -1)
+		return;
+
+	// shift cache
+	for (i = foundIndex; i < *cache->size - 1; i++)
+		cache->array[i] = cache->array[i + 1];
+
+	// removed entry
+	*cache->size--;
+
+	freeCacheEntry(cEntry);
+	pthread_mutex_unlock(cache->mutex);
 }
 
 // also acts as a destructor for the cache
