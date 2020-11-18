@@ -87,7 +87,7 @@ void parseRequest(request *req) {
 	}
 }
 
-cacheEntry *forwardRequest(request *req) {
+cacheEntry *forwardRequest(request *req, struct cache *cache) {
 	int sock, bytesCopied = 0, bytesSent, serverlen, totalReceived = 0, bytesReceived, entrySize = MAXBUF;
 	cacheEntry *cEntry = (cacheEntry *)malloc(sizeof(cacheEntry));
 	struct sockaddr_in server;
