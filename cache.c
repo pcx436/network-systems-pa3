@@ -4,7 +4,7 @@
 
 #include "cache.h"
 
-cacheEntry *cacheLookup(char *requestPath, struct cache *cache) {
+char * cacheLookup(char *requestPath, struct cache *cache) {
 	
 }
 
