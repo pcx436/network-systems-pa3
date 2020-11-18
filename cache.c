@@ -12,7 +12,7 @@ char * cacheLookup(char *requestPath, struct cache *cache) {
 	char *returnValue = NULL;
 	pthread_mutex_lock(cache->mutex);
 
-	for(i = 0; i < *cache->size && returnValue == NULL; i++)
+	for(i = 0; i < cache->count && returnValue == NULL; i++)
 		if (strcmp(requestPath, cache->array[i]->requestPath) == 0)
 			returnValue = cache->array[i]->response;
 
@@ -26,7 +26,7 @@ void deleteCacheEntry(char *requestPath, struct cache *cache) {
 	cacheEntry *cEntry = NULL;
 
 	// get index of cache entry.
-	for(i = 0; i < *cache->size && foundIndex == -1; i++) {
+	for(i = 0; i < cache->count && foundIndex == -1; i++) {
 		if (strcmp(requestPath, cache->array[i]->requestPath) == 0) {
 			foundIndex = i;
 			cEntry = cache->array[i];
@@ -38,11 +38,11 @@ void deleteCacheEntry(char *requestPath, struct cache *cache) {
 		return;
 
 	// shift cache
-	for (i = foundIndex; i < *cache->size - 1; i++)
+	for (i = foundIndex; i < cache->count - 1; i++)
 		cache->array[i] = cache->array[i + 1];
 
 	// removed entry
-	*cache->size--;
+	cache->count--;
 
 	freeCacheEntry(cEntry);
 	pthread_mutex_unlock(cache->mutex);
@@ -52,7 +52,7 @@ void deleteCacheEntry(char *requestPath, struct cache *cache) {
 void clearCache(struct cache *cache) {
 	// no need to use mutex lock since this should only be called during termination of the main
 	int i;
-	for (i = 0; i < *cache->size; i++)
+	for (i = 0; i < cache->count; i++)
 		freeCacheEntry(NULL);
 
 	free(cache->array);

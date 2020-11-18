@@ -17,7 +17,7 @@ typedef struct {
 struct cache {
 	cacheEntry **array;
 	pthread_mutex_t *mutex;
-	int *size;
+	int count;
 	int timeout;
 };
 
