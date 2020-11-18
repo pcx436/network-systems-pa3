@@ -9,14 +9,15 @@
 
 char * cacheLookup(char *requestPath, struct cache *cache) {
 	int i;
+	char *returnValue = NULL;
 	pthread_mutex_lock(cache->mutex);
 
-	for(i = 0; i < *cache->size; i++)
+	for(i = 0; i < *cache->size && returnValue == NULL; i++)
 		if (strcmp(requestPath, cache->array[i]->requestURL) == 0)
-			return cache->array[i]->response;
+			returnValue = cache->array[i]->response;
 
 	pthread_mutex_unlock(cache->mutex);
-	return NULL;
+	return returnValue;
 }
 
 void deleteCacheEntry(char *requestPath, struct cache *cache) {
