@@ -36,3 +36,9 @@ void clearCache(struct cache *cache) {
 	pthread_mutex_destroy(cache->mutex);
 	free(cache);
 }
+
+void freeCacheEntry(cacheEntry *cEntry) {
+	free(cEntry->requestURL);
+	free(cEntry->response);
+	free(cEntry);
+}
