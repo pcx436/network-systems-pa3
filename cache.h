@@ -27,4 +27,6 @@ void deleteCacheEntry(char *requestPath, struct cache *cache);
 
 void clearCache(struct cache *cache);
 
+void freeCacheEntry(cacheEntry *cEntry);
+
 #endif //HTTPPROXY_CACHE_H
