@@ -21,6 +21,8 @@ struct cache {
 	int timeout;
 };
 
+void addToCache(char *requestPath, char *response, struct cache *cache);
+
 char * cacheLookup(char *requestPath, struct cache *cache);
 
 void deleteCacheEntry(char *requestPath, struct cache *cache);
