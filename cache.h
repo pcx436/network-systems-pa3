@@ -18,6 +18,7 @@ struct cache {
 	cacheEntry **array;
 	pthread_mutex_t *mutex;
 	int count;
+	int capacity;
 	int timeout;
 };
 
