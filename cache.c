@@ -4,8 +4,8 @@
 
 #include "cache.h"
 
-cacheEntry *cacheLookup(struct cache *cache) {
-
+cacheEntry *cacheLookup(char *requestPath, struct cache *cache) {
+	
 }
 
 void deleteCacheEntry(char *requestPath, struct cache *cache) {
