@@ -6,8 +6,9 @@
 #define HTTPPROXY_REQUEST_H
 
 #include "macro.h"
+#include "cache.h"
 #include <semaphore.h>
-#include <sys/time.h>
+#include <time.h>
 
 typedef struct {
 	char *method;  // should always be GET
@@ -18,12 +19,6 @@ typedef struct {
 	char *postProcessBuffer;
 	int port;
 } request;
-
-typedef struct {
-	struct timeval t;
-	char *requestURL;
-	char *response;
-} cacheEntry;
 
 typedef struct {
 	int *connfd;

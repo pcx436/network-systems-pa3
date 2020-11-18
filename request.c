@@ -12,7 +12,9 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <time.h>
 #include "request.h"
+#include "cache.h"
 
 void readRequest(int connfd, request *req) {
 	int currentMax = MAXBUF;
@@ -113,7 +115,7 @@ cacheEntry *forwardRequest(request *req) {
 	// allocate for the cache
 	cEntry->requestURL = (char *)malloc(strlen(req->requestPath) + 1);
 	cEntry->response = (char *)malloc(sizeof(char) * MAXBUF);
-	gettimeofday(&cEntry->t, NULL);
+	cEntry->t = time(NULL);
 	strcpy(cEntry->requestURL, req->requestPath);
 
 	// forward request
