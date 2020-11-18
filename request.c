@@ -87,6 +87,7 @@ void parseRequest(request *req) {
 	}
 }
 
+// TODO: implement cache system
 cacheEntry *forwardRequest(request *req, struct cache *cache) {
 	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived, entrySize = MAXBUF;
 	cacheEntry *cEntry = (cacheEntry *)malloc(sizeof(cacheEntry));
