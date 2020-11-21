@@ -11,11 +11,14 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <semaphore.h>
 
 #include "macro.h"
 #include "request.h"
+#include "md5.h"
 
 static volatile int killed = 0;
 
@@ -34,18 +37,16 @@ void interruptHandler(int useless) {
 
 int main(int argc, char **argv) {
 	int *connfdp;
-	int listenfd, port, index, threadCount = 0, threadArraySize = 1, cacheSize = 0, cacheTimeout = 60;
+	int listenfd, port, index, threadCount = 0, threadArraySize = 1, cacheTimeout = 60;
 	socklen_t clientlen = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientaddr;
+	struct cache *cache;
 	threadParams *tps;
-	pthread_mutex_t cacheMutex, threadMutex;
-	pthread_t *threadIDs = (pthread_t *)malloc(sizeof(pthread_t) * threadArraySize);
-	cacheEntry *cache;
+	pthread_mutex_t threadMutex;
+	pthread_t *threadIDs;
 
 	// init shared content
-	pthread_mutex_init(&cacheMutex, NULL);
 	pthread_mutex_init(&threadMutex, NULL);
-	cache = (cacheEntry *)malloc(sizeof(cacheEntry) * MAX_CACHE_ENTRIES);
 
 	// register signal handler
 	signal(SIGINT, interruptHandler);
@@ -71,9 +72,21 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	if ((cache = initCache(cacheTimeout)) == NULL) {
+		perror("Failed cache initialization");
+		return 1;
+	}
+
+	if ((threadIDs = malloc(sizeof(pthread_t) * threadArraySize)) == NULL) {
+		perror("Failed to allocate thread arrays");
+		clearCache(cache);
+		return 1;
+	}
 	// create the socket we'll use
 	if((listenfd = open_listenfd(port)) < 0) {
 		perror("Could not open socket");
+		free(threadIDs);
+		clearCache(cache);
 		return 1;
 	}
 
@@ -85,8 +98,6 @@ int main(int argc, char **argv) {
 		if ((*connfdp = accept(listenfd, (struct sockaddr *) &clientaddr, &clientlen)) > 0){
 			tps = (threadParams *)malloc(sizeof(threadParams));
 			tps->cache = cache;
-			tps->cacheSize = &cacheSize;
-			tps->cacheMutex = &cacheMutex;
 			tps->numThreads = &threadCount;
 			tps->threadMutex = &threadMutex;
 			tps->connfd = connfdp;
@@ -107,14 +118,6 @@ int main(int argc, char **argv) {
 		pthread_join(threadIDs[index], NULL);
 	free(threadIDs);
 
-	// clear the cache
-	for (index = 0; index < cacheSize; index++) {
-		free(cache[index].requestPath);
-		free(cache[index].response);
-	}
-	free(cache);
-
-	pthread_mutex_destroy(&cacheMutex);
 	pthread_mutex_destroy(&threadMutex);
 	return 0;
 }
@@ -122,14 +125,23 @@ int main(int argc, char **argv) {
 /* thread routine */
 void *thread(void *vargp) {
 	threadParams *tps = (threadParams *)vargp;
+	FILE *serverResponse = NULL;
+	char errorMessage[] = "%s 400 Bad Request\r\n";
+	char *requestHash = malloc(HEX_BYTES + 1);
 	int connfd = *tps->connfd;  // get the connection file descriptor
 	free(tps->connfd);  // don't need that anymore since it was just an int anyway
 
-	char errorMessage[] = "%s 400 Bad Request\r\n";
-	request *req = (request *)malloc(sizeof(request));
-	readRequest(connfd, req);
-	parseRequest(req);
-	cacheEntry *serverResponse = forwardRequest(req);
+	request *req = malloc(sizeof(request));
+	readRequest(connfd, req);  // receive data from client
+	parseRequest(req);  // parse data from client into readable format
+
+	// check if in cache
+	md5Str(req->requestPath, requestHash);
+	if ((serverResponse = cacheLookup(requestHash, tps->cache)) != NULL) {  // stuff was in the cache already, yay!
+
+	} else {
+		serverResponse = forwardRequest(req, tps->cache);
+	}
 
 	if (serverResponse != NULL)
 		sendResponse(connfd, serverResponse);
