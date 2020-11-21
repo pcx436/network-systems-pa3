@@ -127,13 +127,13 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	}
 
 	// allocate for the cache
-
-	// forward request
 	if ((socketBuffer = malloc(sizeof(char) * MAXBUF)) == NULL) {
 		perror("Failed to allocated socket read buffer");
 		close(sock);
 		return NULL;
 	}
+
+	// forward request
 	do {
 		strcpy(socketBuffer, req->originalBuffer + bytesCopied);
 
