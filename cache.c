@@ -3,49 +3,249 @@
 //
 
 #include "cache.h"
+#include "md5.h"
+#include "macro.h"
+#include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <math.h>
 #include <string.h>
 
-char * cacheLookup(char *requestPath, struct cache *cache) {
-	int i;
-	char *returnValue = NULL;
+struct cache *initCache(int timeout) {
+	// temp dir initialization
+	int initialCacheCapacity = 1;
+	const char *dirStr = "/tmp/proxyCache.XXXXXX", *cacheFileName = "/dnsCache.csv";
+
+	char *tmpDir = NULL, *tmpTemplate = malloc(strlen(dirStr)), *hostnameTemplate = NULL;
+
+	pthread_mutex_t *mutex, *hostnameMutex;
+	cacheEntry **array;
+	struct cache *newCache;
+
+	// Memory allocation check failures
+	if (tmpTemplate == NULL) {
+		perror("Failed to allocate memory for temporary directory name");
+		return NULL;
+	}
+
+	hostnameTemplate = malloc(strlen(dirStr) +strlen(cacheFileName));
+	if (hostnameTemplate == NULL) {
+		perror("hostname template did a bad, stop the wizard!!!");
+		free(tmpTemplate);
+		return NULL;
+	}
+
+	strcpy(tmpTemplate, dirStr);
+
+	if ((tmpDir = mkdtemp(tmpTemplate)) == NULL) {
+		perror("Failed to create cache directory");
+		free(tmpTemplate);
+		free(hostnameTemplate);
+		return NULL;
+	}
+
+	strcpy(hostnameTemplate, tmpDir);
+	strcat(hostnameTemplate, cacheFileName);
+
+	// memory allocation for mutex
+	if ((mutex = malloc(sizeof(pthread_mutex_t))) == NULL) {
+		perror("Failed to allocate memory for cache mutex");
+		free(tmpTemplate);
+		free(hostnameTemplate);
+		return NULL;
+	}
+	pthread_mutex_init(mutex, NULL);
+
+	if ((hostnameMutex = malloc(sizeof(pthread_mutex_t))) == NULL) {
+		perror("Failed to allocate memory for cache mutex");
+		free(tmpTemplate);
+		free(hostnameTemplate);
+		pthread_mutex_destroy(mutex);
+		free(mutex);
+		return NULL;
+	}
+	pthread_mutex_init(hostnameMutex, NULL);
+
+	// cache array allocation
+	if ((array = malloc(sizeof(cacheEntry *) * initialCacheCapacity)) == NULL) {
+		perror("Failed to allocate in-memory cache");
+		free(tmpTemplate);
+		free(hostnameTemplate);
+		pthread_mutex_destroy(mutex);
+		pthread_mutex_destroy(hostnameMutex);
+		free(mutex);
+		free(hostnameMutex);
+
+		return NULL;
+	}
+
+	// cache struct allocation
+	if ((newCache = malloc(sizeof(struct cache))) == NULL) {
+		perror("Failed to allocate cache struct");
+		free(tmpTemplate);
+		free(hostnameTemplate);
+		pthread_mutex_destroy(mutex);
+		pthread_mutex_destroy(hostnameMutex);
+		free(mutex);
+		free(hostnameMutex);
+		free(array);
+
+		return NULL;
+	}
+
+	/**
+	 * Finally! If we get to this point then all of the memory allocations passed.
+	 * They will probaby always passed on a non-embedded system, but it's still nice to have the checks in place.
+	 * Now we build the actual struct that we're going to return.
+	 */
+	 newCache->array = array;
+	 newCache->mutex = mutex;
+	 newCache->hostnameMutex = hostnameMutex;
+	 newCache->dnsFile = hostnameTemplate;
+	 newCache->cacheDirectory = tmpDir;
+	 newCache->count = 0;
+	 newCache->capacity = initialCacheCapacity;
+	 newCache->timeout = timeout;
+
+	free(tmpTemplate);
+	return newCache;
+}
+
+void addToCache(char *requestPath, const char *response, struct cache *cache) {
+	// error check
+	if (requestPath == NULL || response == NULL || cache == NULL)
+		return;
+
+	// first, check to see if entry is already in the cache
+	char *requestHash, *lineBuffer;
+	FILE *lookupResult;
+
+	// hash requestPath with MD5 to get requestHash
+	if ((requestHash = malloc(HEX_BYTES)) == NULL)
+		return;
+
+	md5Str(requestPath, requestHash);
+
+	// try doing cache lookup on md5 result
 	pthread_mutex_lock(cache->mutex);
 
-	for(i = 0; i < cache->count && returnValue == NULL; i++)
-		if (strcmp(requestPath, cache->array[i]->requestPath) == 0)
-			returnValue = cache->array[i]->response;
+	// File is already in the cache, ignore and leave
+	if ((lookupResult = cacheLookup(requestHash, cache)) != NULL) {
+		fclose(lookupResult);
+		pthread_mutex_unlock(cache->mutex);
+		free(requestHash);
+		return;
+	}
+
+	// second: Didn't find file in cache, time to add it.
+	cacheEntry *cEntry;
+	if ((cEntry = malloc(sizeof(cacheEntry))) == NULL) {
+		perror("Failed cacheEntry malloc during addToCache");
+
+		pthread_mutex_unlock(cache->mutex);
+		free(requestHash);
+
+		return;
+	}
+	cEntry->requestHash = requestHash;
+	cEntry->t = time(NULL);
+
+	// actually write response to new cache file
+	if ((lookupResult = fopen(requestHash, "w")) == NULL) {
+		perror("Failed new cache file open");
+		pthread_mutex_unlock(cache->mutex);
+		free(requestHash);
+		return;
+	}
+	if ((lineBuffer = malloc(MAXBUF)) == NULL) {
+		perror("Failed new cache file buffer malloc");
+		fclose(lookupResult);
+		pthread_mutex_unlock(cache->mutex);
+		free(requestHash);
+		return;
+	}
+
+	// Time to write that file!
+	int numBytesCopied = 0;
+	do {
+		bzero(lineBuffer, MAXBUF);
+		strcpy(lineBuffer, response + numBytesCopied);
+
+		numBytesCopied += (int)fwrite(lineBuffer, sizeof(char), strlen(lineBuffer), lookupResult);
+	} while (numBytesCopied == MAXBUF);
+	free(lineBuffer);
+	fclose(lookupResult);
+
+	// do we have to double cache size to fit new entry?
+	if (cache->count == cache->capacity) {
+		cache->capacity *= 2;
+
+		cache->array = (cacheEntry **)realloc(cache->array, sizeof(cacheEntry *) * cache->capacity);
+	} else if (cache->count < ceil(cache->capacity/2.0)) {  // downsize if possible cause why not
+		cache->capacity = ceil(cache->capacity/2.0);
+
+		cache->array = (cacheEntry **)realloc(cache->array, sizeof(cacheEntry *) * cache->capacity);
+	}
+
+	// Add element to cache, increase the count
+	cache->array[cache->count++] = cEntry;
 
 	pthread_mutex_unlock(cache->mutex);
+}
+
+FILE * cacheLookup(char *requestHash, struct cache *cache) {
+	// error check
+	if (requestHash == NULL || cache == NULL)
+		return NULL;
+
+	int i;
+	FILE *returnValue = NULL;
+	char *fileName = (char *)malloc(HEX_BYTES + strlen(cache->cacheDirectory) + 2);  // one for / one for \0
+	pthread_mutex_lock(cache->mutex);
+
+	// First, check if requestHash in cache. Second, open cache file if possible.
+	for(i = 0; i < cache->count && returnValue == NULL && !errno; i++) {
+		if (strcmp(requestHash, cache->array[i]->requestHash) == 0) {  // found in cache, try to open file
+			sprintf(fileName, "%s/%s", cache->cacheDirectory, requestHash);
+			returnValue = fopen(fileName, "r");
+		}
+	}
+
+	pthread_mutex_unlock(cache->mutex);
+	free(fileName);
 	return returnValue;
 }
 
-void deleteCacheEntry(char *requestPath, struct cache *cache) {
-	pthread_mutex_lock(cache->mutex);
+void deleteCacheEntry(char *requestHash, struct cache *cache) {
 	int i, foundIndex = -1;
 	cacheEntry *cEntry = NULL;
+	pthread_mutex_lock(cache->mutex);
 
 	// get index of cache entry.
 	for(i = 0; i < cache->count && foundIndex == -1; i++) {
-		if (strcmp(requestPath, cache->array[i]->requestPath) == 0) {
+		if (strcmp(requestHash, cache->array[i]->requestHash) == 0) {
+			// found cache element!
 			foundIndex = i;
 			cEntry = cache->array[i];
 		}
 	}
 
 	// didn't find it.
-	if (foundIndex == -1)
+	if (foundIndex == -1) {
+		pthread_mutex_unlock(cache->mutex);
 		return;
+	}
 
 	// shift cache
 	for (i = foundIndex; i < cache->count - 1; i++)
 		cache->array[i] = cache->array[i + 1];
 
 	// removed entry
-	cache->count--;
+	cache->array[cache->count--] = NULL;
 
-	freeCacheEntry(cEntry);
 	pthread_mutex_unlock(cache->mutex);
+	freeCacheEntry(cEntry);
 }
 
 // also acts as a destructor for the cache
@@ -53,15 +253,16 @@ void clearCache(struct cache *cache) {
 	// no need to use mutex lock since this should only be called during termination of the main
 	int i;
 	for (i = 0; i < cache->count; i++)
-		freeCacheEntry(NULL);
+		freeCacheEntry(cache->array[i]);
 
-	free(cache->array);
 	pthread_mutex_destroy(cache->mutex);
+	free(cache->array);
+	free(cache->mutex);
+	free(cache->cacheDirectory);
 	free(cache);
 }
 
 void freeCacheEntry(cacheEntry *cEntry) {
-	free(cEntry->requestPath);
-	free(cEntry->response);
+	free(cEntry->requestHash);
 	free(cEntry);
 }
