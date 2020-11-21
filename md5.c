@@ -124,10 +124,10 @@ void md5(const uint8_t *initial_msg, size_t initial_len, uint8_t *digest) {
 }
 
 // The following was coded by Jacob Malcy
-void md5Str(char *msg, char *strResult) {
+char * md5Str(char *msg, char *strResult) {
 	// error check
 	if (msg == NULL || (msg != NULL && strlen(msg) == 0))
-		return;
+		return NULL;
 
 	int i;
 	uint8_t uintResult[HEX_BYTES];
@@ -145,4 +145,5 @@ void md5Str(char *msg, char *strResult) {
 		strcat(strResult, charCast);
 		free(charCast);
 	}
+	return strResult;
 }
