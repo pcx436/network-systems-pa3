@@ -7,26 +7,31 @@
 
 #include <time.h>
 #include <pthread.h>
+#include <stdio.h>
 
 typedef struct {
 	time_t t;
-	char *requestPath;
-	char *response;
+	char *requestHash;
 } cacheEntry;
 
 struct cache {
 	cacheEntry **array;
 	pthread_mutex_t *mutex;
+	pthread_mutex_t *hostnameMutex;
+	char *cacheDirectory;
+	char *dnsFile;
 	int count;
 	int capacity;
 	int timeout;
 };
 
-void addToCache(char *requestPath, char *response, struct cache *cache);
+struct cache *initCache(int timeout);
 
-char * cacheLookup(char *requestPath, struct cache *cache);
+void addToCache(char *requestPath, const char *response, struct cache *cache);
 
-void deleteCacheEntry(char *requestPath, struct cache *cache);
+FILE * cacheLookup(char *requestHash, struct cache *cache);
+
+void deleteCacheEntry(char *requestHash, struct cache *cache);
 
 void clearCache(struct cache *cache);
 
