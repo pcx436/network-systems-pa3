@@ -143,7 +143,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 		} else {
 			bytesCopied += bytesSent;  // Should this be bytesCopied += MAXBUF??
 		}
-	} while (strstr(socketBuffer, "\r\n\r\n") == NULL && bytesSent >= 0);
+	} while (bytesSent > 0);
 
 	// receive response
 	do {
