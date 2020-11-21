@@ -15,8 +15,9 @@
 #include <time.h>
 #include "request.h"
 #include "cache.h"
+#include "md5.h"
 
-void readRequest(int connfd, request *req) {
+char * readRequest(int connfd, request *req) {
 	int currentMax = MAXBUF;
 	char *recvBuffer = malloc(sizeof(char) * MAXBUF);
 	req->originalBuffer = (char *)malloc(sizeof(char) * currentMax);
@@ -39,20 +40,24 @@ void readRequest(int connfd, request *req) {
 
 				if (req->originalBuffer == NULL) {
 					perror("Failed to allocate buffer to meet client demands.");
-					exit(1);
+					free(recvBuffer);
+					return NULL;
 				}
 			}
 
 			strcat(req->originalBuffer, recvBuffer);
 		} else if (currentReadNum < 0) {
 			perror("Error reading data from user.");
-			exit(1);
+			free(recvBuffer);
+			return NULL;
 		}
-	} while (strstr(req->originalBuffer, "\r\n\r\n") == NULL && currentReadNum > 0);  // not done reading
+	} while (currentReadNum > 0);  // not done reading
 	free(recvBuffer);
+
+	return req->originalBuffer;
 }
 
-void parseRequest(request *req) {
+char * parseRequest(request *req) {
 	char *tmp = NULL, *savePtr = NULL, *finder = NULL;
 	req->postProcessBuffer = (char *)malloc(strlen(req->originalBuffer) + 1);
 
@@ -82,18 +87,20 @@ void parseRequest(request *req) {
 			req->host = tmp;
 		} else {
 			perror("Error parsing request: invalid host");
-			exit(1);
+			free(req->postProcessBuffer);
+			return NULL;
 		}
 	}
+	return req->postProcessBuffer;
 }
 
-// TODO: implement cache system
-cacheEntry *forwardRequest(request *req, struct cache *cache) {
+FILE * forwardRequest(request *req, struct cache *cache) {
 	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived, entrySize = MAXBUF;
-	cacheEntry *cEntry = (cacheEntry *)malloc(sizeof(cacheEntry));
 	struct sockaddr_in server;
-	struct hostent *hostLookup;
-	char *socketBuffer = (char *)malloc(sizeof(char) * MAXBUF);
+	char *socketBuffer = NULL, *requestHash = NULL;
+	FILE *returnFile = NULL;
+	struct hostent *hostLookup = NULL;
+
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("Couldn't open socket to destination");
 		return NULL;
@@ -103,6 +110,7 @@ cacheEntry *forwardRequest(request *req, struct cache *cache) {
 	server.sin_family = AF_INET;
 	server.sin_port = htons(req->port);  // pick random t
 
+	// check the hostname file
 	hostLookup = gethostbyname(req->host);
 	if (hostLookup == NULL) { // FIXME: need to respond properly to unknown host
 		perror("Could not find hostname of specified host");
@@ -114,11 +122,12 @@ cacheEntry *forwardRequest(request *req, struct cache *cache) {
 	}
 
 	// allocate for the cache
-	cEntry->requestPath = (char *)malloc(strlen(req->requestPath) + 1);
-	cEntry->response = (char *)malloc(sizeof(char) * MAXBUF);
-	strcpy(cEntry->requestPath, req->requestPath);
 
 	// forward request
+	if ((socketBuffer = malloc(sizeof(char) * MAXBUF)) == NULL) {
+		perror("Failed to allocated socket read buffer");
+		return NULL;
+	}
 	do {
 		strcpy(socketBuffer, req->originalBuffer + bytesCopied);
 
@@ -178,6 +187,61 @@ void sendResponse(int connfd, cacheEntry *cEntry) {
 	} while (bytesCopied < strlen(cEntry->response));
 	free(socketBuffer);
 }
+
+char *hostnameLookup(char *hostname, struct cache *cache) {
+	if (cache == NULL || hostname == NULL)
+		return NULL;
+
+	char *lineBuf, *savePoint, *domain = "\0", *ip = "a";
+	FILE *dnsFile;
+	struct hostent *hostLookup;
+
+	pthread_mutex_lock(cache->hostnameMutex);
+	if (access(cache->dnsFile, R_OK) != -1) {  // found cache file
+		if ((lineBuf = malloc(MAXLINE)) == NULL) {
+			perror("Couldn't allocate line buffer for hostname lookup");
+		} else if ((dnsFile = fopen(cache->dnsFile, "r")) != NULL) {
+			// throw out first line, should be title
+			fgets(lineBuf, MAXLINE, dnsFile);
+			while (fgets(lineBuf, MAXLINE, dnsFile) && strcmp(domain, hostname) != 0) {
+				hostname = strtok_r(lineBuf, ",", &savePoint);
+				ip = strtok_r(NULL, "\n", &savePoint);
+			}
+			fclose(dnsFile);
+
+			free(lineBuf);
+			if (strlen(ip) == 0) {  // not found in cache. Will have to add it now.
+				hostLookup = gethostbyname(hostname);
+				if (hostLookup != NULL && hostLookup->h_length > 0) {
+					dnsFile = fopen(cache->dnsFile, "a");
+					fprintf(dnsFile, "%s,%s\n", hostname, hostLookup->h_addr_list[0]);
+					fclose(dnsFile);
+				}
+			}
+		} else {
+			perror("Failed to open dns cache file for reading");
+		}
+	} else if ((dnsFile = fopen(cache->dnsFile, "w")) != NULL){  // no cache file, must create
+		fprintf(dnsFile, "hostname,ip_addr\n");
+		hostLookup = gethostbyname(hostname);
+
+		// if we got a result, put it in the file
+		if (hostLookup != NULL && hostLookup->h_length > 0) {
+			fprintf(dnsFile, "%s,%s\n", hostname, hostLookup->h_addr_list[0]);
+		}
+		fclose(dnsFile);
+	}
+	pthread_mutex_unlock(cache->hostnameMutex);
+
+	// final return system
+	if (hostLookup != NULL && hostLookup->h_length > 0)
+		return hostLookup->h_addr_list[0];
+	else if (ip != NULL)
+		return ip;
+	else
+		return NULL;
+}
+
 
 /**
  * Removes trailing spaces from a string.
