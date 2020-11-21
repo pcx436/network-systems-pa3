@@ -122,6 +122,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	// connect socket
 	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
 		perror("Failed to connect to destination");
+		close(sock);
 		return NULL;
 	}
 
@@ -130,6 +131,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	// forward request
 	if ((socketBuffer = malloc(sizeof(char) * MAXBUF)) == NULL) {
 		perror("Failed to allocated socket read buffer");
+		close(sock);
 		return NULL;
 	}
 	do {
