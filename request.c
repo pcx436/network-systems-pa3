@@ -101,21 +101,25 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	FILE *returnFile = NULL;
 	struct hostent *hostLookup = NULL;
 
-	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		perror("Couldn't open socket to destination");
-		return NULL;
-	}
-
-	server.sin_addr.s_addr = inet_addr("0.0.0.0");
-	server.sin_family = AF_INET;
-	server.sin_port = htons(req->port);  // pick random t
-
 	// check the hostname file
 	hostLookup = gethostbyname(req->host);
 	if (hostLookup == NULL) { // FIXME: need to respond properly to unknown host
 		perror("Could not find hostname of specified host");
 		return NULL;
 	}
+
+	// open socket
+	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("Couldn't open socket to destination");
+		return NULL;
+	}
+
+	// set socket args
+	server.sin_addr.s_addr = inet_addr("0.0.0.0");
+	server.sin_family = AF_INET;
+	server.sin_port = htons(req->port);  // pick random t
+
+	// connect socket
 	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
 		perror("Failed to connect to destination");
 		return NULL;
