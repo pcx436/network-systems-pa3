@@ -101,16 +101,24 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	FILE *returnFile = NULL;
 	struct hostent *hostLookup = NULL;
 
+	if ((requestHash = malloc(HEX_BYTES + 1)) == NULL) {
+		perror("failed to allocate MD5 buffer for forwardRequest");
+		return NULL;
+	}
+	md5Str(req->requestPath, requestHash);  // hash the str
+
 	// check the hostname file
 	hostLookup = gethostbyname(req->host);
 	if (hostLookup == NULL) { // FIXME: need to respond properly to unknown host
 		perror("Could not find hostname of specified host");
+		free(requestHash);
 		return NULL;
 	}
 
 	// open socket
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("Couldn't open socket to destination");
+		free(requestHash);
 		return NULL;
 	}
 
@@ -122,6 +130,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	// connect socket
 	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
 		perror("Failed to connect to destination");
+		free(requestHash);
 		close(sock);
 		return NULL;
 	}
@@ -129,6 +138,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	// allocate for the cache
 	if ((socketBuffer = malloc(sizeof(char) * MAXBUF)) == NULL) {
 		perror("Failed to allocated socket read buffer");
+		free(requestHash);
 		close(sock);
 		return NULL;
 	}
@@ -171,6 +181,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	} while (bytesReceived == MAXBUF);
 	close(sock);
 	free(socketBuffer);
+	free(requestHash);
 
 	return cEntry;
 }
