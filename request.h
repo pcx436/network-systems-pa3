@@ -22,20 +22,20 @@ typedef struct {
 
 typedef struct {
 	int *connfd;
-	int *cacheSize;
 	int *numThreads;
-	pthread_mutex_t *cacheMutex;
 	pthread_mutex_t *threadMutex;
-	cacheEntry *cache;
+	struct cache *cache;
 } threadParams;
 
-void readRequest(int connfd, request *req);
+char * readRequest(int connfd, request *req);
 
-void parseRequest(request *req);
+char * parseRequest(request *req);
 
-cacheEntry *forwardRequest(request *req, struct cache *cache);
+FILE * forwardRequest(request *req, struct cache *cache);
 
 void sendResponse(int connfd, cacheEntry *cEntry);
+
+char *hostnameLookup(char *hostname, struct cache *cache);
 
 void trimSpace(char *s);
 
