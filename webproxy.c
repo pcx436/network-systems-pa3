@@ -127,7 +127,6 @@ void *thread(void *vargp) {
 	threadParams *tps = (threadParams *)vargp;
 	FILE *serverResponse = NULL;
 	char errorMessage[] = "%s 400 Bad Request\r\n";
-	char *requestHash = malloc(HEX_BYTES + 1);
 	int connfd = *tps->connfd;  // get the connection file descriptor
 	free(tps->connfd);  // don't need that anymore since it was just an int anyway
 
@@ -136,10 +135,7 @@ void *thread(void *vargp) {
 	parseRequest(req);  // parse data from client into readable format
 
 	// check if in cache
-	md5Str(req->requestPath, requestHash);
-	if ((serverResponse = cacheLookup(requestHash, tps->cache)) != NULL) {  // stuff was in the cache already, yay!
-
-	} else {
+	if ((serverResponse = cacheLookup(req->requestHash, tps->cache)) == NULL) {  // cache lookup failed
 		serverResponse = forwardRequest(req, tps->cache);
 	}
 
