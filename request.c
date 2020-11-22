@@ -108,25 +108,24 @@ char * parseRequest(request *req) {
 
 FILE * forwardRequest(request *req, struct cache *cache) {
 	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived;
-	struct sockaddr_in server;
 	char socketBuffer[MAXBUF], fileName[PATH_MAX];
 	FILE *returnFile = NULL;
-	struct hostent *hostLookup = NULL;
+	struct addrinfo *infoResults;
+
+	// check the hostname file
+	infoResults = hostnameLookup(req->host, cache);
+	if (infoResults == NULL) {
+		perror("Could not find hostname of specified host");
+		fclose(returnFile);
+		return NULL;
+	}
 
 	// open returnFile
 	bzero(fileName, PATH_MAX);
 	snprintf(fileName, PATH_MAX, "%s/%s", cache->cacheDirectory, req->requestHash);
 
-	if ((returnFile = fopen(fileName, "w+")) == NULL) {
+	if ((returnFile = fopen(fileName, "w")) == NULL) {
 		perror("failed opening new cache file");
-		return NULL;
-	}
-
-	// check the hostname file
-	hostLookup = gethostbyname(req->host);
-	if (hostLookup == NULL) { // FIXME: need to respond properly to unknown host
-		perror("Could not find hostname of specified host");
-		fclose(returnFile);
 		return NULL;
 	}
 
