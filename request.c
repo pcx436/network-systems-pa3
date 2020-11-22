@@ -213,62 +213,49 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 		perror("Failed to allocate IPv4 cache read buffer");
 		return NULL;
 	}
+	bzero(returnIP, INET_ADDRSTRLEN);
 
 	pthread_mutex_lock(cache->hostnameMutex);
-	if (access(cache->dnsFile, (R_OK | W_OK)) == 0) {  // found cache file
-		if ((dnsFile = fopen(cache->dnsFile, "a+")) != NULL) {
-			fseek(dnsFile, 0, SEEK_SET);  // ensure we're at the start of the file
-			// throw out first line, should be title
-			fgets(lineBuf, MAXLINE, dnsFile);
-			while (fgets(lineBuf, MAXLINE, dnsFile) && strcmp(domain, hostname) != 0) {
-				hostname = strtok_r(lineBuf, ",", &savePoint);
-				ip = strtok_r(NULL, "\n", &savePoint);
-			}
+	// TODO: Implement blacklist check
+	if ((dnsFile = fopen(cache->dnsFile, "r")) != NULL) {  // found cache file
+		while (fgets(lineBuf, MAXLINE, dnsFile) && strcmp(domain, hostname) != 0) {
+			domain = strtok_r(lineBuf, ",", &savePoint);
+			ip = strtok_r(NULL, "\n", &savePoint);
+		}
 
-			if (strlen(ip) == 0) {  // not found in cache. Will have to add it now.
-				hostLookup = gethostbyname(hostname);
-
-				// resolved hostname
-				if (hostLookup != NULL && hostLookup->h_length > 0) {
-					fprintf(dnsFile, "%s,%s\n", hostname, hostLookup->h_addr_list[0]);
-					strcpy(returnIP, hostLookup->h_addr_list[0]);
-				} else {  // unable to resolve IP
-					fprintf(dnsFile, "%s,UNKNOWN\n", hostname);
-				}
-			} else if (!strcmp(ip, "UNKNOWN")) {  // resolved IP and it is an actual address
-				strcpy(returnIP, ip);
-			} else {  // unable to resolve address
-				free(returnIP);
-			}
-			fclose(dnsFile);
-		} else {  // couldn't open the cache file, just try resolving
+		if (domain != NULL && strcmp(domain, hostname) != 0) {  // not found in cache. Will have to add it now.
 			hostLookup = gethostbyname(hostname);
 
 			// resolved hostname
 			if (hostLookup != NULL && hostLookup->h_length > 0) {
-				fprintf(dnsFile, "%s,%s\n", hostname, hostLookup->h_addr_list[0]);
 				strcpy(returnIP, hostLookup->h_addr_list[0]);
 			}
+		} else if (ip != NULL && strcmp(ip, "UNKNOWN") != 0) {  // found IP address in cache file
+			strcpy(returnIP, ip);
 		}
-	} else if ((dnsFile = fopen(cache->dnsFile, "w")) != NULL){  // no cache file, must create
-		fprintf(dnsFile, "hostname,ip_addr\n");
+		fclose(dnsFile);
+
+	} else {  // couldn't open the cache file, just try resolving
 		hostLookup = gethostbyname(hostname);
 
-		// if we got a result, put it in the file
+		// resolved hostname
 		if (hostLookup != NULL && hostLookup->h_length > 0) {
-			fprintf(dnsFile, "%s,%s\n", hostname, hostLookup->h_addr_list[0]);
+			strcpy(returnIP, hostLookup->h_addr_list[0]);
 		}
+	}
+
+	// write to cache if we didn't grab the IP from cache
+	if (domain == NULL && (dnsFile = fopen(cache->dnsFile, "a")) != NULL){
+		if (strlen(returnIP) == 0)
+			fprintf(dnsFile, "%s,UNKNOWN\n", hostname);
+		else
+			fprintf(dnsFile, "%s,%s\n", hostname, returnIP);
 		fclose(dnsFile);
 	}
 	pthread_mutex_unlock(cache->hostnameMutex);
 
 	// final return system
-	if (hostLookup != NULL && hostLookup->h_length > 0)
-		return hostLookup->h_addr_list[0];
-	else if (ip != NULL)
-		return ip;
-	else
-		return NULL;
+	return returnIP;
 }
 
 
