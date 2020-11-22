@@ -229,6 +229,7 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 			domain = strtok_r(lineBuf, ",", &savePoint);
 			ip = strtok_r(NULL, "\n", &savePoint);
 		}
+		fclose(dnsFile);
 
 		// found IP address in cache file
 		if (ip != NULL && strcmp(ip, "UNKNOWN") != 0) {
@@ -242,7 +243,6 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 				strcpy(returnIP, hostLookup->h_addr_list[0]);
 			}
 		}
-		fclose(dnsFile);
 
 	} else {  // couldn't open the cache file, just try resolving
 		hostLookup = gethostbyname(hostname);
