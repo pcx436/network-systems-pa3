@@ -167,19 +167,18 @@ FILE * cacheLookup(char *requestHash, struct cache *cache) {
 
 	int i;
 	FILE *returnValue = NULL;
-	char *fileName = (char *)malloc(HEX_BYTES + strlen(cache->cacheDirectory) + 2);  // one for / one for \0
+	char fileName[PATH_MAX];  // one for / one for \0
 	pthread_mutex_lock(cache->mutex);
 
 	// First, check if requestHash in cache. Second, open cache file if possible.
 	for(i = 0; i < cache->count && returnValue == NULL && !errno; i++) {
 		if (strcmp(requestHash, cache->array[i]->requestHash) == 0) {  // found in cache, try to open file
 			sprintf(fileName, "%s/%s", cache->cacheDirectory, requestHash);
-			returnValue = fopen(fileName, "r");
+			returnValue = fopen(fileName, "rb");
 		}
 	}
 
 	pthread_mutex_unlock(cache->mutex);
-	free(fileName);
 	return returnValue;
 }
 
