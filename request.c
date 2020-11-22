@@ -182,23 +182,20 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	return returnFile;
 }
 
-void sendResponse(int connfd, cacheEntry *cEntry) {
-	char *socketBuffer = (char *)malloc(sizeof(char) * MAXBUF);
-	int bytesCopied = 0, bytesSent;
+void sendResponse(int connfd, FILE *cacheFile) {
+	int bytesRead, bytesSent;
+	char socketBuffer[MAXBUF];
 
 	do {
-		strcpy(socketBuffer, cEntry->response + bytesCopied);
-
-		bytesSent = send(connfd, socketBuffer, MAXBUF, 0);
+		bzero(socketBuffer, MAXBUF);
+		bytesRead = fread(socketBuffer, sizeof(char), MAXBUF, cacheFile);  // FIXME: conversion issue?
+		bytesSent = send(connfd, socketBuffer, bytesRead, 0);
 
 		if (bytesSent < 0) {
 			perror("Error sending data back to client");
-			bytesCopied = strlen(cEntry->response);  // break loop
-		} else {
-			bytesCopied += bytesSent;  // Should this be bytesCopied += MAXBUF??
+			bytesRead = MAXBUF - 1;  // break loop
 		}
-	} while (bytesCopied < strlen(cEntry->response));
-	free(socketBuffer);
+	} while (bytesRead == MAXBUF);
 }
 
 char *hostnameLookup(char *hostname, struct cache *cache) {
