@@ -230,15 +230,17 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 			ip = strtok_r(NULL, "\n", &savePoint);
 		}
 
-		if (domain != NULL && strcmp(domain, hostname) != 0) {  // not found in cache. Will have to add it now.
+		// found IP address in cache file
+		if (ip != NULL && strcmp(ip, "UNKNOWN") != 0) {
+			strcpy(returnIP, ip);
+		} else if (domain != NULL && strcmp(domain, hostname) != 0) {
+			// not found in cache. Will have to add it now.
 			hostLookup = gethostbyname(hostname);
 
 			// resolved hostname
 			if (hostLookup != NULL && hostLookup->h_length > 0) {
 				strcpy(returnIP, hostLookup->h_addr_list[0]);
 			}
-		} else if (ip != NULL && strcmp(ip, "UNKNOWN") != 0) {  // found IP address in cache file
-			strcpy(returnIP, ip);
 		}
 		fclose(dnsFile);
 
