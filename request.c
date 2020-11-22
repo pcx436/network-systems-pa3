@@ -207,6 +207,8 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 	char *savePoint = NULL, *domain = NULL, *ip = NULL, *returnIP = NULL;
 	char lineBuf[MAXLINE];
 	FILE *dnsFile = NULL;
+	int lookupError;
+	struct addrinfo hints, *infoResults;
 	struct hostent *hostLookup = NULL;
 
 	if ((returnIP = malloc(INET6_ADDRSTRLEN)) == NULL) {
@@ -214,6 +216,11 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 		return NULL;
 	}
 	bzero(returnIP, INET6_ADDRSTRLEN);
+
+	// hints setup
+	bzero(&hints, sizeof(struct addrinfo));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
 
 	pthread_mutex_lock(cache->hostnameMutex);
 	// TODO: Implement blacklist check
