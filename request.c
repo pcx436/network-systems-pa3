@@ -225,7 +225,7 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 	pthread_mutex_lock(cache->hostnameMutex);
 	// TODO: Implement blacklist check
 	if ((dnsFile = fopen(cache->dnsFile, "r")) != NULL) {  // found cache file
-		while (fgets(lineBuf, MAXLINE, dnsFile) && strcmp(domain, hostname) != 0) {
+		while (strcmp(domain, hostname) != 0 && fgets(lineBuf, MAXLINE, dnsFile)) {
 			domain = strtok_r(lineBuf, ",", &savePoint);
 			ip = strtok_r(NULL, "\n", &savePoint);
 		}
