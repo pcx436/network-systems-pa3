@@ -232,7 +232,7 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 		fclose(dnsFile);
 
 		// found IP address in cache file
-		if (ip != NULL && strcmp(ip, "UNKNOWN") != 0) {
+		if (domain != NULL && ip != NULL && strcmp(domain, hostname) == 0 && strcmp(ip, "UNKNOWN") != 0) {
 			strcpy(returnIP, ip);
 		} else if (domain != NULL && strcmp(domain, hostname) != 0) {
 			// not found in cache. Will have to add it now.
