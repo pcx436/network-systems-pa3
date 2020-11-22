@@ -106,7 +106,7 @@ char * parseRequest(request *req) {
 }
 
 FILE * forwardRequest(request *req, struct cache *cache) {
-	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived, entrySize = MAXBUF;
+	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived;
 	struct sockaddr_in server;
 	char socketBuffer[MAXBUF], fileName[PATH_MAX];
 	FILE *returnFile = NULL;
