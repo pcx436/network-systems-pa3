@@ -17,6 +17,7 @@ typedef struct {
 	char *host;
 	char *originalBuffer;
 	char *postProcessBuffer;
+	char *requestHash;
 	int port;
 } request;
 
