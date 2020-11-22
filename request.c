@@ -137,7 +137,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	}
 
 	// set socket args
-	server.sin_addr.s_addr = inet_addr("0.0.0.0");
+	server.sin_addr.s_addr = inet_addr(req->host);
 	server.sin_family = AF_INET;
 	server.sin_port = htons(req->port);  // pick random t
 
