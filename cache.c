@@ -221,10 +221,14 @@ void clearCache(struct cache *cache) {
 	for (i = 0; i < cache->count; i++)
 		freeCacheEntry(cache->array[i]);
 
+	// TODO: Delete cache directory
 	pthread_mutex_destroy(cache->mutex);
+	pthread_mutex_destroy(cache->hostnameMutex);
 	free(cache->array);
 	free(cache->mutex);
+	free(cache->hostnameMutex);
 	free(cache->cacheDirectory);
+	free(cache->dnsFile);
 	free(cache);
 }
 
