@@ -34,7 +34,7 @@ char * parseRequest(request *req);
 
 FILE * forwardRequest(request *req, struct cache *cache);
 
-void sendResponse(int connfd, cacheEntry *cEntry);
+void sendResponse(int connfd, FILE *cacheFile);
 
 char *hostnameLookup(char *hostname, struct cache *cache);
 
