@@ -108,28 +108,31 @@ char * parseRequest(request *req) {
 FILE * forwardRequest(request *req, struct cache *cache) {
 	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived, entrySize = MAXBUF;
 	struct sockaddr_in server;
-	char *socketBuffer = NULL, *requestHash = NULL;
+	char socketBuffer[MAXBUF], fileName[PATH_MAX];
 	FILE *returnFile = NULL;
 	struct hostent *hostLookup = NULL;
 
-	if ((requestHash = malloc(HEX_BYTES + 1)) == NULL) {
-		perror("failed to allocate MD5 buffer for forwardRequest");
+	// open returnFile
+	bzero(fileName, PATH_MAX);
+	snprintf(fileName, PATH_MAX, "%s/%s", cache->cacheDirectory, req->requestHash);
+
+	if ((returnFile = fopen(fileName, "wb+")) == NULL) {
+		perror("failed opening new cache file");
 		return NULL;
 	}
-	md5Str(req->requestPath, requestHash);  // hash the str
 
 	// check the hostname file
 	hostLookup = gethostbyname(req->host);
 	if (hostLookup == NULL) { // FIXME: need to respond properly to unknown host
 		perror("Could not find hostname of specified host");
-		free(requestHash);
+		fclose(returnFile);
 		return NULL;
 	}
 
 	// open socket
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("Couldn't open socket to destination");
-		free(requestHash);
+		fclose(returnFile);
 		return NULL;
 	}
 
@@ -141,30 +144,23 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	// connect socket
 	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
 		perror("Failed to connect to destination");
-		free(requestHash);
-		close(sock);
-		return NULL;
-	}
-
-	// allocate for the cache
-	if ((socketBuffer = malloc(sizeof(char) * MAXBUF)) == NULL) {
-		perror("Failed to allocated socket read buffer");
-		free(requestHash);
+		fclose(returnFile);
 		close(sock);
 		return NULL;
 	}
 
 	// forward request
 	do {
+		bzero(socketBuffer, MAXBUF);
 		strcpy(socketBuffer, req->originalBuffer + bytesCopied);
 
-		bytesSent = send(sock, socketBuffer, MAXBUF, 0);
+		bytesSent = send(sock, socketBuffer, strlen(socketBuffer), 0);
 		if (bytesSent < 0) {
 			perror("Error sending data");
 		} else {
 			bytesCopied += bytesSent;  // Should this be bytesCopied += MAXBUF??
 		}
-	} while (bytesSent > 0);
+	} while (bytesSent > 0);  // TODO: check this
 
 	// receive response
 	do {
@@ -175,26 +171,15 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 			perror("Error reading response");
 		} else {
 			totalReceived += bytesReceived;
-
-			while (entrySize < totalReceived) {
-				entrySize *= 2;
-
-				cEntry->response = (char *)realloc(cEntry->response, sizeof(char) * entrySize);
-				if (cEntry->response == NULL) {
-					perror("Failed growing memory for new cache entry");
-					bytesReceived = MAXBUF - 1;  // breaks loop
-				}
-			}
-
-			strcat(cEntry->response, socketBuffer);
+			fwrite(socketBuffer, sizeof(char), bytesReceived, returnFile);
 		}
 
 	} while (bytesReceived == MAXBUF);
 	close(sock);
-	free(socketBuffer);
-	free(requestHash);
+	fseek(returnFile, 0, SEEK_SET);
 
-	return cEntry;
+	addToCache(req->requestHash, cache);
+	return returnFile;
 }
 
 void sendResponse(int connfd, cacheEntry *cEntry) {
