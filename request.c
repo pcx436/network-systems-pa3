@@ -110,13 +110,13 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived;
 	char socketBuffer[MAXBUF], fileName[PATH_MAX];
 	FILE *returnFile = NULL;
+	struct sockaddr_in *server;
 	struct addrinfo *infoResults;
 
 	// check the hostname file
 	infoResults = hostnameLookup(req->host, cache);
 	if (infoResults == NULL) {
 		perror("Could not find hostname of specified host");
-		fclose(returnFile);
 		return NULL;
 	}
 
@@ -126,6 +126,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 
 	if ((returnFile = fopen(fileName, "w")) == NULL) {
 		perror("failed opening new cache file");
+		freeaddrinfo(infoResults);
 		return NULL;
 	}
 
@@ -133,18 +134,19 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("Couldn't open socket to destination");
 		fclose(returnFile);
+		freeaddrinfo(infoResults);
 		return NULL;
 	}
 
 	// set socket args
-	server.sin_addr.s_addr = inet_addr(req->host);
-	server.sin_family = AF_INET;
-	server.sin_port = htons(req->port);  // pick random t
+	server = (struct sockaddr_in *) infoResults->ai_addr;
+	server->sin_port = htons(req->port);  // pick random t
 
 	// connect socket
-	if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+	if (connect(sock, (struct sockaddr *)&server, infoResults->ai_addrlen) < 0) {
 		perror("Failed to connect to destination");
 		fclose(returnFile);
+		freeaddrinfo(infoResults);
 		close(sock);
 		return NULL;
 	}
@@ -177,6 +179,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	} while (bytesReceived == MAXBUF);
 	close(sock);
 	fseek(returnFile, 0, SEEK_SET);
+	freeaddrinfo(infoResults);
 
 	addToCache(req->requestHash, cache);
 	return returnFile;
