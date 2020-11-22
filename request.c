@@ -204,18 +204,11 @@ struct addrinfo * hostnameLookup(char *hostname, struct cache *cache) {
 	if (cache == NULL || hostname == NULL)
 		return NULL;
 
-	char *savePoint = NULL, *domain = "\0", *ip, *returnIP = NULL;
-	char lineBuf[MAXLINE];
+	char *savePoint = NULL, *domain = "\0", *ip;
+	char lineBuf[MAXLINE], translateIP[INET6_ADDRSTRLEN];
 	FILE *dnsFile = NULL;
-	int lookupError;
-	struct addrinfo hints, *infoResults;
-	struct hostent *hostLookup = NULL;
-
-	if ((returnIP = malloc(INET6_ADDRSTRLEN)) == NULL) {
-		perror("Failed to allocate IPv4 cache read buffer");
-		return NULL;
-	}
-	bzero(returnIP, INET6_ADDRSTRLEN);
+	int lookupError = 1;  // all error codes are < 0, and since 0 is "success" we need something greater than 0
+	struct addrinfo hints, *infoResults = NULL;
 
 	// hints setup
 	bzero(&hints, sizeof(struct addrinfo));
@@ -230,41 +223,41 @@ struct addrinfo * hostnameLookup(char *hostname, struct cache *cache) {
 			ip = strtok_r(NULL, "\n", &savePoint);
 		}
 		fclose(dnsFile);
+		pthread_mutex_unlock(cache->hostnameMutex);
 
 		// found IP address in cache file
 		if (domain != NULL && ip != NULL && strcmp(domain, hostname) == 0 && strcmp(ip, "UNKNOWN") != 0) {
-			strcpy(returnIP, ip);
+			hints.ai_flags |= AI_NUMERICHOST;  // found in cache, build socket
+
+			lookupError = getaddrinfo(ip, NULL, &hints, &infoResults);
 		} else if (domain != NULL && strcmp(domain, hostname) != 0) {
 			// not found in cache. Will have to add it now.
-			hostLookup = gethostbyname(hostname);
-
-			// resolved hostname
-			if (hostLookup != NULL && hostLookup->h_length > 0) {
-				strcpy(returnIP, hostLookup->h_addr_list[0]);
-			}
+			lookupError = getaddrinfo(hostname, NULL, &hints, &infoResults);
 		}
 
 	} else {  // couldn't open the cache file, just try resolving
-		hostLookup = gethostbyname(hostname);
-
-		// resolved hostname
-		if (hostLookup != NULL && hostLookup->h_length > 0) {
-			strcpy(returnIP, hostLookup->h_addr_list[0]);
-		}
+		pthread_mutex_unlock(cache->hostnameMutex);
+		lookupError = getaddrinfo(hostname, NULL, &hints, &infoResults);
 	}
 
 	// write to cache if we didn't grab the IP from cache
-	if (domain == NULL && (dnsFile = fopen(cache->dnsFile, "a")) != NULL){
-		if (strlen(returnIP) == 0)
-			fprintf(dnsFile, "%s,UNKNOWN\n", hostname);
-		else
-			fprintf(dnsFile, "%s,%s\n", hostname, returnIP);
-		fclose(dnsFile);
+	pthread_mutex_lock(cache->hostnameMutex);
+	dnsFile = fopen(cache->dnsFile, "a");
+
+	if (dnsFile == NULL)
+		perror("Failed to open DNS cache file for writing");
+	else if (lookupError < 0 && strcmp(domain, hostname) != 0)  // failed lookup, didn't find it in the file
+		fprintf(dnsFile, "%s,UNKNOWN\n", hostname);
+	else if (lookupError == 0 && !(AI_NUMERICHOST & hints.ai_flags)){  // we have not seen this IP before
+		inet_ntop(infoResults->ai_family, &((struct sockaddr_in *)infoResults->ai_addr)->sin_addr,
+				translateIP, INET6_ADDRSTRLEN);
+		fprintf(dnsFile, "%s,%s\n", hostname, translateIP);
 	}
+	fclose(dnsFile);
 	pthread_mutex_unlock(cache->hostnameMutex);
 
 	// final return system
-	return returnIP;
+	return infoResults;
 }
 
 
