@@ -204,7 +204,7 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 	if (cache == NULL || hostname == NULL)
 		return NULL;
 
-	char *savePoint = NULL, *domain = NULL, *ip = NULL, *returnIP = NULL;
+	char *savePoint = NULL, *domain = "\0", *ip, *returnIP = NULL;
 	char lineBuf[MAXLINE];
 	FILE *dnsFile = NULL;
 	int lookupError;
