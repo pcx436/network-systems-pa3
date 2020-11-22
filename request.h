@@ -40,5 +40,4 @@ char *hostnameLookup(char *hostname, struct cache *cache);
 
 void trimSpace(char *s);
 
-
 #endif //HTTPPROXY_REQUEST_H
