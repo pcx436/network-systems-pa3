@@ -92,6 +92,16 @@ char * parseRequest(request *req) {
 			return NULL;
 		}
 	}
+
+	// MD5 hash requestPath
+	if ((req->requestHash = malloc(HEX_BYTES + 1)) == NULL) {
+		perror("Failed allocating requestHash in parseResponse");
+		free(req->originalBuffer);
+		free(req->postProcessBuffer);
+		return NULL;
+	}
+	md5Str(req->requestPath, req->requestHash);
+
 	return req->postProcessBuffer;
 }
 
