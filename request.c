@@ -209,11 +209,11 @@ char *hostnameLookup(char *hostname, struct cache *cache) {
 	FILE *dnsFile = NULL;
 	struct hostent *hostLookup = NULL;
 
-	if ((returnIP = malloc(INET_ADDRSTRLEN)) == NULL) {
+	if ((returnIP = malloc(INET6_ADDRSTRLEN)) == NULL) {
 		perror("Failed to allocate IPv4 cache read buffer");
 		return NULL;
 	}
-	bzero(returnIP, INET_ADDRSTRLEN);
+	bzero(returnIP, INET6_ADDRSTRLEN);
 
 	pthread_mutex_lock(cache->hostnameMutex);
 	// TODO: Implement blacklist check
