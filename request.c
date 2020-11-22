@@ -88,6 +88,7 @@ char * parseRequest(request *req) {
 		} else {
 			perror("Error parsing request: invalid host");
 			free(req->postProcessBuffer);
+			free(req->originalBuffer);
 			return NULL;
 		}
 	}
