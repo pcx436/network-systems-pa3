@@ -137,9 +137,7 @@ void *thread(void *vargp) {
 	// check if in cache
 	if ((serverResponse = cacheLookup(req->requestHash, tps->cache)) == NULL) {  // cache lookup failed
 		serverResponse = forwardRequest(req, tps->cache);
-	}
-
-	if (serverResponse != NULL)
+	} else
 		sendResponse(connfd, serverResponse);
 
 	close(connfd);  // close the socket
