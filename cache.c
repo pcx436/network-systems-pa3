@@ -18,7 +18,7 @@ struct cache *initCache(int timeout) {
 	int initialCacheCapacity = 1;
 	const char *dirStr = "/tmp/proxyCache.XXXXXX", *cacheFileName = "/dnsCache.csv";
 
-	char *tmpDir = NULL, *tmpTemplate = malloc(strlen(dirStr)), *hostnameTemplate = NULL;
+	char *tmpDir = NULL, *tmpTemplate = malloc(strlen(dirStr) + 1), *hostnameTemplate = NULL;
 
 	pthread_mutex_t *mutex, *hostnameMutex;
 	cacheEntry **array;
@@ -30,7 +30,7 @@ struct cache *initCache(int timeout) {
 		return NULL;
 	}
 
-	hostnameTemplate = malloc(strlen(dirStr) +strlen(cacheFileName));
+	hostnameTemplate = malloc(strlen(dirStr) + strlen(cacheFileName) + 1);
 	if (hostnameTemplate == NULL) {
 		perror("hostname template did a bad, stop the wizard!!!");
 		free(tmpTemplate);
