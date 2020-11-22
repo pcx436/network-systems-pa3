@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <math.h>
 #include <string.h>
+#include <linux/limits.h>
 
 struct cache *initCache(int timeout) {
 	// temp dir initialization
@@ -112,20 +113,14 @@ struct cache *initCache(int timeout) {
 	return newCache;
 }
 
-void addToCache(char *requestPath, const char *response, struct cache *cache) {
+void addToCache(char *requestHash, struct cache *cache) {
 	// error check
-	if (requestPath == NULL || response == NULL || cache == NULL)
+	if (requestHash == NULL || cache == NULL)
 		return;
 
 	// first, check to see if entry is already in the cache
-	char *requestHash, *lineBuffer;
+	char lineBuffer[MAXLINE];
 	FILE *lookupResult;
-
-	// hash requestPath with MD5 to get requestHash
-	if ((requestHash = malloc(HEX_BYTES)) == NULL)
-		return;
-
-	md5Str(requestPath, requestHash);
 
 	// try doing cache lookup on md5 result
 	pthread_mutex_lock(cache->mutex);
@@ -134,7 +129,6 @@ void addToCache(char *requestPath, const char *response, struct cache *cache) {
 	if ((lookupResult = cacheLookup(requestHash, cache)) != NULL) {
 		fclose(lookupResult);
 		pthread_mutex_unlock(cache->mutex);
-		free(requestHash);
 		return;
 	}
 
@@ -144,38 +138,10 @@ void addToCache(char *requestPath, const char *response, struct cache *cache) {
 		perror("Failed cacheEntry malloc during addToCache");
 
 		pthread_mutex_unlock(cache->mutex);
-		free(requestHash);
-
 		return;
 	}
 	cEntry->requestHash = requestHash;
 	cEntry->t = time(NULL);
-
-	// actually write response to new cache file
-	if ((lookupResult = fopen(requestHash, "w")) == NULL) {
-		perror("Failed new cache file open");
-		pthread_mutex_unlock(cache->mutex);
-		free(requestHash);
-		return;
-	}
-	if ((lineBuffer = malloc(MAXBUF)) == NULL) {
-		perror("Failed new cache file buffer malloc");
-		fclose(lookupResult);
-		pthread_mutex_unlock(cache->mutex);
-		free(requestHash);
-		return;
-	}
-
-	// Time to write that file!
-	int numBytesCopied = 0;
-	do {
-		bzero(lineBuffer, MAXBUF);
-		strcpy(lineBuffer, response + numBytesCopied);
-
-		numBytesCopied += (int)fwrite(lineBuffer, sizeof(char), strlen(lineBuffer), lookupResult);
-	} while (numBytesCopied == MAXBUF);
-	free(lineBuffer);
-	fclose(lookupResult);
 
 	// do we have to double cache size to fit new entry?
 	if (cache->count == cache->capacity) {

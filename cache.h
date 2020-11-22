@@ -27,7 +27,7 @@ struct cache {
 
 struct cache *initCache(int timeout);
 
-void addToCache(char *requestPath, const char *response, struct cache *cache);
+void addToCache(char *requestHash, struct cache *cache);
 
 FILE * cacheLookup(char *requestHash, struct cache *cache);
 
