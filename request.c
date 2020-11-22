@@ -200,7 +200,7 @@ void sendResponse(int connfd, FILE *cacheFile) {
 }
 
 // FIXME: this function messed up
-char *hostnameLookup(char *hostname, struct cache *cache) {
+struct addrinfo * hostnameLookup(char *hostname, struct cache *cache) {
 	if (cache == NULL || hostname == NULL)
 		return NULL;
 
