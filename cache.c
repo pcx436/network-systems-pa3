@@ -109,7 +109,7 @@ struct cache *initCache(int timeout) {
 	 newCache->capacity = initialCacheCapacity;
 	 newCache->timeout = timeout;
 
-	free(tmpTemplate);
+	fprintf(stderr, "Cache diretory is %s\n", tmpDir);
 	return newCache;
 }
 
