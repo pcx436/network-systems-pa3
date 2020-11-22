@@ -157,6 +157,7 @@ void addToCache(char *requestHash, struct cache *cache) {
 	// Add element to cache, increase the count
 	cache->array[cache->count++] = cEntry;
 
+	// TODO: Spawn thread that will eliminate entry from cache after timeout period
 	pthread_mutex_unlock(cache->mutex);
 }
 
