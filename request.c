@@ -199,38 +199,56 @@ void sendResponse(int connfd, FILE *cacheFile) {
 	} while (bytesRead == MAXBUF);
 }
 
+// FIXME: this function messed up
 char *hostnameLookup(char *hostname, struct cache *cache) {
 	if (cache == NULL || hostname == NULL)
 		return NULL;
 
-	char *lineBuf, *savePoint, *domain = "\0", *ip = "a";
-	FILE *dnsFile;
-	struct hostent *hostLookup;
+	char *savePoint = NULL, *domain = "\0", *ip, *returnIP = NULL;
+	char lineBuf[MAXLINE];
+	FILE *dnsFile = NULL;
+	struct hostent *hostLookup = NULL;
+
+	if ((returnIP = malloc(INET_ADDRSTRLEN)) == NULL) {
+		perror("Failed to allocate IPv4 cache read buffer");
+		return NULL;
+	}
 
 	pthread_mutex_lock(cache->hostnameMutex);
-	if (access(cache->dnsFile, R_OK) != -1) {  // found cache file
-		if ((lineBuf = malloc(MAXLINE)) == NULL) {
-			perror("Couldn't allocate line buffer for hostname lookup");
-		} else if ((dnsFile = fopen(cache->dnsFile, "r")) != NULL) {
+	if (access(cache->dnsFile, (R_OK | W_OK)) == 0) {  // found cache file
+		if ((dnsFile = fopen(cache->dnsFile, "a+")) != NULL) {
+			fseek(dnsFile, 0, SEEK_SET);  // ensure we're at the start of the file
 			// throw out first line, should be title
 			fgets(lineBuf, MAXLINE, dnsFile);
 			while (fgets(lineBuf, MAXLINE, dnsFile) && strcmp(domain, hostname) != 0) {
 				hostname = strtok_r(lineBuf, ",", &savePoint);
 				ip = strtok_r(NULL, "\n", &savePoint);
 			}
-			fclose(dnsFile);
 
-			free(lineBuf);
 			if (strlen(ip) == 0) {  // not found in cache. Will have to add it now.
 				hostLookup = gethostbyname(hostname);
+
+				// resolved hostname
 				if (hostLookup != NULL && hostLookup->h_length > 0) {
-					dnsFile = fopen(cache->dnsFile, "a");
 					fprintf(dnsFile, "%s,%s\n", hostname, hostLookup->h_addr_list[0]);
-					fclose(dnsFile);
+					strcpy(returnIP, hostLookup->h_addr_list[0]);
+				} else {  // unable to resolve IP
+					fprintf(dnsFile, "%s,UNKNOWN\n", hostname);
 				}
+			} else if (!strcmp(ip, "UNKNOWN")) {  // resolved IP and it is an actual address
+				strcpy(returnIP, ip);
+			} else {  // unable to resolve address
+				free(returnIP);
 			}
-		} else {
-			perror("Failed to open dns cache file for reading");
+			fclose(dnsFile);
+		} else {  // couldn't open the cache file, just try resolving
+			hostLookup = gethostbyname(hostname);
+
+			// resolved hostname
+			if (hostLookup != NULL && hostLookup->h_length > 0) {
+				fprintf(dnsFile, "%s,%s\n", hostname, hostLookup->h_addr_list[0]);
+				strcpy(returnIP, hostLookup->h_addr_list[0]);
+			}
 		}
 	} else if ((dnsFile = fopen(cache->dnsFile, "w")) != NULL){  // no cache file, must create
 		fprintf(dnsFile, "hostname,ip_addr\n");
