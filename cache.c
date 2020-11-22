@@ -175,7 +175,7 @@ FILE * cacheLookup(char *requestHash, struct cache *cache) {
 	for(i = 0; i < cache->count && returnValue == NULL && !errno; i++) {
 		if (strcmp(requestHash, cache->array[i]->requestHash) == 0) {  // found in cache, try to open file
 			sprintf(fileName, "%s/%s", cache->cacheDirectory, requestHash);
-			returnValue = fopen(fileName, "rb");
+			returnValue = fopen(fileName, "r");
 		}
 	}
 
