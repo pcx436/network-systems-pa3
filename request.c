@@ -128,7 +128,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	}
 
 	// open socket
-	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	if ((sock = socket(infoResults->ai_family, SOCK_STREAM, 0)) < 0) {
 		perror("Couldn't open socket to destination");
 		fclose(returnFile);
 		freeaddrinfo(infoResults);
@@ -140,7 +140,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	server->sin_port = htons(req->port);  // pick random t
 
 	// connect socket
-	if (connect(sock, (struct sockaddr *)&server, infoResults->ai_addrlen) < 0) {
+	if (connect(sock, (struct sockaddr *)server, infoResults->ai_addrlen) < 0) {
 		perror("Failed to connect to destination");
 		fclose(returnFile);
 		freeaddrinfo(infoResults);
