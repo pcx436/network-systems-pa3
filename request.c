@@ -68,6 +68,11 @@ char * parseRequest(request *req) {
 	req->protocol = strtok_r(NULL, "\n", &savePtr);
 	trimSpace(req->protocol);
 
+	if (strcmp(req->method, "GET") != 0) {
+		free(req->postProcessBuffer);
+		return NULL;
+	}
+
 	tmp = strtok_r(NULL, " ", &savePtr);
 	if (tmp != NULL && strcmp(tmp, "Host:") == 0){  // host specification
 		tmp = strtok_r(NULL, "\n", &savePtr);  // grab the rest of the line
