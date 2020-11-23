@@ -14,6 +14,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
 #include "request.h"
 #include "cache.h"
 #include "md5.h"
@@ -141,7 +142,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 
 	// connect socket
 	if (connect(sock, (struct sockaddr *)server, infoResults->ai_addrlen) < 0) {
-		perror("Failed to connect to destination");
+		fprintf(stderr, "Failed to connect to destination %s: %s\n", req->host, strerror(errno));
 		fclose(returnFile);
 		freeaddrinfo(infoResults);
 		close(sock);
