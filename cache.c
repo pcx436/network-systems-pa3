@@ -126,7 +126,7 @@ void addToCache(char *requestHash, struct cache *cache) {
 	pthread_mutex_lock(cache->mutex);
 
 	// File is already in the cache, ignore and leave
-	if ((lookupResult = cacheLookup(requestHash, cache)) != NULL) {
+	if ((lookupResult = cacheLookup(requestHash, cache, LOCK_DISABLED)) != NULL) {
 		fclose(lookupResult);
 		pthread_mutex_unlock(cache->mutex);
 		return;
@@ -161,7 +161,7 @@ void addToCache(char *requestHash, struct cache *cache) {
 	pthread_mutex_unlock(cache->mutex);
 }
 
-FILE * cacheLookup(char *requestHash, struct cache *cache) {
+FILE *cacheLookup(char *requestHash, struct cache *cache, int lockEnabled) {
 	// error check
 	if (requestHash == NULL || cache == NULL)
 		return NULL;
@@ -169,7 +169,9 @@ FILE * cacheLookup(char *requestHash, struct cache *cache) {
 	int i;
 	FILE *returnValue = NULL;
 	char fileName[PATH_MAX];  // one for / one for \0
-	pthread_mutex_lock(cache->mutex);
+
+	if (lockEnabled == LOCK_ENABLED)
+		pthread_mutex_lock(cache->mutex);
 
 	// First, check if requestHash in cache. Second, open cache file if possible.
 	for(i = 0; i < cache->count && returnValue == NULL && !errno; i++) {
@@ -179,7 +181,9 @@ FILE * cacheLookup(char *requestHash, struct cache *cache) {
 		}
 	}
 
-	pthread_mutex_unlock(cache->mutex);
+	if (lockEnabled == LOCK_ENABLED)
+		pthread_mutex_unlock(cache->mutex);
+
 	return returnValue;
 }
 
