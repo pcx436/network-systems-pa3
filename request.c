@@ -121,7 +121,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	bzero(fileName, PATH_MAX);
 	snprintf(fileName, PATH_MAX, "%s/%s", cache->cacheDirectory, req->requestHash);
 
-	if ((returnFile = fopen(fileName, "w")) == NULL) {
+	if ((returnFile = fopen(fileName, "w+")) == NULL) {
 		perror("failed opening new cache file");
 		freeaddrinfo(infoResults);
 		return NULL;
