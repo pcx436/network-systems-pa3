@@ -127,24 +127,32 @@ int main(int argc, char **argv) {
 void *thread(void *vargp) {
 	threadParams *tps = (threadParams *)vargp;
 	FILE *serverResponse = NULL;
-	char errorMessage[] = "%s 400 Bad Request\r\n";
+	char errorMessage[] = "400 Bad Request\r\n";
 	int connfd = *tps->connfd;  // get the connection file descriptor
 	free(tps->connfd);  // don't need that anymore since it was just an int anyway
 
 	request *req = malloc(sizeof(request));
-	readRequest(connfd, req);  // receive data from client
-	parseRequest(req);  // parse data from client into readable format
+	bzero(req, sizeof(request));
 
-	// check if in cache
-	if ((serverResponse = cacheLookup(req->requestHash, tps->cache, LOCK_ENABLED)) == NULL) {  // cache lookup failed
-		serverResponse = forwardRequest(req, tps->cache);
+	if (readRequest(connfd, req) == NULL) {  // receive data from client
+		send(connfd, errorMessage, strlen(errorMessage), 0);
+	} else if (parseRequest(req) == NULL) {  // parse data from client into readable format
+		send(connfd, errorMessage, strlen(errorMessage), 0);
+		free(req->originalBuffer);
+		free(req->requestHash);
+	} else {
+		// check if in cache
+		if ((serverResponse = cacheLookup(req->requestHash, tps->cache, LOCK_ENABLED)) == NULL) {  // cache lookup failed
+			serverResponse = forwardRequest(req, tps->cache);
+		}
+
+		if (serverResponse != NULL)
+			sendResponse(connfd, serverResponse);
+
+		free(req->originalBuffer);
+		free(req->postProcessBuffer);
 	}
 
-	if (serverResponse != NULL)
-		sendResponse(connfd, serverResponse);
-
-	free(req->originalBuffer);
-	free(req->postProcessBuffer);
 	free(req);
 
 	close(connfd);  // close the socket
