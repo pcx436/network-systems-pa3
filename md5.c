@@ -130,17 +130,19 @@ char * md5Str(char *msg, char *strResult) {
 		return NULL;
 
 	int i;
-	uint8_t uintResult[HEX_BYTES];
+	uint8_t uintResult[16];
 	size_t len = strlen(msg);
 	char *charCast;
 
-	bzero(strResult, HEX_BYTES);  // clear out the result array
+	bzero(strResult, HEX_BYTES + 1);  // clear out the result array
 
 	md5((uint8_t *) msg, len, uintResult);
 
 	// build result
-	for (i = 0; i < HEX_BYTES; i++) {
+	for (i = 0; i < 16; i++) {
 		charCast = malloc(3);  // 2 hex + \0
+		bzero(charCast, 3);
+		printf("\"%2.2x\"\n", uintResult[i]);
 		snprintf(charCast, 3, "%2.2x", uintResult[i]);
 		strcat(strResult, charCast);
 		free(charCast);
