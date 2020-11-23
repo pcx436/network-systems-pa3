@@ -159,7 +159,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 		} else {
 			bytesCopied += bytesSent;  // Should this be bytesCopied += MAXBUF??
 		}
-	} while (bytesSent > 0);  // TODO: check this
+	} while (bytesSent == MAXBUF);  // TODO: check this
 
 	// receive response
 	do {
