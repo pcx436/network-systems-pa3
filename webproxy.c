@@ -135,7 +135,7 @@ void *thread(void *vargp) {
 	parseRequest(req);  // parse data from client into readable format
 
 	// check if in cache
-	if ((serverResponse = cacheLookup(req->requestHash, tps->cache)) == NULL) {  // cache lookup failed
+	if ((serverResponse = cacheLookup(req->requestHash, tps->cache, LOCK_ENABLED)) == NULL) {  // cache lookup failed
 		serverResponse = forwardRequest(req, tps->cache);
 	}
 
