@@ -142,7 +142,6 @@ char * md5Str(char *msg, char *strResult) {
 	for (i = 0; i < 16; i++) {
 		charCast = malloc(3);  // 2 hex + \0
 		bzero(charCast, 3);
-		printf("\"%2.2x\"\n", uintResult[i]);
 		snprintf(charCast, 3, "%2.2x", uintResult[i]);
 		strcat(strResult, charCast);
 		free(charCast);
