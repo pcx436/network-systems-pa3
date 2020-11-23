@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
 	free(threadIDs);
 
 	pthread_mutex_destroy(&threadMutex);
+	clearCache(cache);
 	return 0;
 }
 
@@ -142,11 +143,16 @@ void *thread(void *vargp) {
 	if (serverResponse != NULL)
 		sendResponse(connfd, serverResponse);
 
+	free(req->originalBuffer);
+	free(req->postProcessBuffer);
+	free(req);
+
 	close(connfd);  // close the socket
 	pthread_mutex_lock(tps->threadMutex);  // no idea if arithmetic operations are thread safe
 	*tps->numThreads--;
 	pthread_mutex_unlock(tps->threadMutex);
-	free(tps);
+	free(vargp);
+
 	return NULL;
 }
 
