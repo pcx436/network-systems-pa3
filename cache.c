@@ -147,10 +147,6 @@ void addToCache(char *requestHash, struct cache *cache) {
 		cache->capacity *= 2;
 
 		cache->array = (cacheEntry **)realloc(cache->array, sizeof(cacheEntry *) * cache->capacity);
-	} else if (cache->count < ceil(cache->capacity/2.0)) {  // downsize if possible cause why not
-		cache->capacity = ceil(cache->capacity/2.0);
-
-		cache->array = (cacheEntry **)realloc(cache->array, sizeof(cacheEntry *) * cache->capacity);
 	}
 
 	// Add element to cache, increase the count
