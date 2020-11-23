@@ -119,7 +119,6 @@ void addToCache(char *requestHash, struct cache *cache) {
 		return;
 
 	// first, check to see if entry is already in the cache
-	char lineBuffer[MAXLINE];
 	FILE *lookupResult;
 
 	// try doing cache lookup on md5 result
