@@ -119,7 +119,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	// check the hostname file
 	infoResults = hostnameLookup(req->host, cache);
 	if (infoResults == NULL) {
-		perror("Could not find hostname of specified host");
+		fprintf(stderr, "Could not find hostname of specified host: %s\n", req->host);
 		return NULL;
 	}
 
