@@ -30,7 +30,7 @@ typedef struct {
 
 char * readRequest(int connfd, request *req);
 
-char * parseRequest(request *req);
+char *parseRequest(request *req, const char *cacheDir);
 
 FILE * forwardRequest(request *req, struct cache *cache);
 

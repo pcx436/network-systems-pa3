@@ -7,6 +7,7 @@
 #include "macro.h"
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <math.h>
@@ -152,8 +153,13 @@ void addToCache(char *requestHash, struct cache *cache) {
 	// Add element to cache, increase the count
 	cache->array[cache->count++] = cEntry;
 
-	// TODO: Spawn thread that will eliminate entry from cache after timeout period
 	pthread_mutex_unlock(cache->mutex);
+	pthread_t id;
+	struct destructionArgs *dArgs = malloc(sizeof(struct destructionArgs));
+	dArgs->cEntry = cEntry;
+	dArgs->c = cache;
+	dArgs->doDetach = 1;
+	pthread_create(&id, NULL, deleteCacheEntry, (void *)dArgs);
 }
 
 FILE *cacheLookup(char *requestHash, struct cache *cache, int lockEnabled) {
@@ -182,24 +188,31 @@ FILE *cacheLookup(char *requestHash, struct cache *cache, int lockEnabled) {
 	return returnValue;
 }
 
-void deleteCacheEntry(char *requestHash, struct cache *cache) {
+void * deleteCacheEntry(void *dArgs) {
 	int i, foundIndex = -1;
-	cacheEntry *cEntry = NULL;
+	struct destructionArgs *destArgs = (struct destructionArgs *)dArgs;
+	struct cache *cache = destArgs->c;
+	cacheEntry *cEntry = destArgs->cEntry;
+
+	if (destArgs -> doDetach == 1)
+		pthread_detach(pthread_self());
+
+	free(destArgs);
+	sleep(cache->timeout);
 	pthread_mutex_lock(cache->mutex);
 
 	// get index of cache entry.
 	for(i = 0; i < cache->count && foundIndex == -1; i++) {
-		if (strcmp(requestHash, cache->array[i]->requestHash) == 0) {
+		if (strcmp(cEntry->requestHash, cache->array[i]->requestHash) == 0) {
 			// found cache element!
 			foundIndex = i;
-			cEntry = cache->array[i];
 		}
 	}
 
 	// didn't find it.
 	if (foundIndex == -1) {
 		pthread_mutex_unlock(cache->mutex);
-		return;
+		return NULL;
 	}
 
 	// shift cache
@@ -210,15 +223,29 @@ void deleteCacheEntry(char *requestHash, struct cache *cache) {
 	cache->array[cache->count--] = NULL;
 
 	pthread_mutex_unlock(cache->mutex);
+
+	char fullName[PATH_MAX];
+	bzero(fullName, PATH_MAX);
+	snprintf(fullName, PATH_MAX, "%s/%s", cache->cacheDirectory, cEntry->requestHash);
+
 	freeCacheEntry(cEntry);
+
+	remove(fullName);
+	return NULL;
 }
 
 // also acts as a destructor for the cache
 void clearCache(struct cache *cache) {
 	// no need to use mutex lock since this should only be called during termination of the main
 	int i;
-	for (i = 0; i < cache->count; i++)
-		freeCacheEntry(cache->array[i]);
+	struct destructionArgs *dArgs;
+	for (i = 0; i < cache->count; i++) {
+		dArgs = malloc(sizeof(struct destructionArgs));
+		dArgs->c = cache;
+		dArgs->cEntry = cache->array[i];
+		dArgs->doDetach = 0;
+		deleteCacheEntry((void *)dArgs);
+	}
 
 	// TODO: Delete cache directory
 	pthread_mutex_destroy(cache->mutex);

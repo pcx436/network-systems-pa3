@@ -56,7 +56,7 @@ char * readRequest(int connfd, request *req) {
 	return req->originalBuffer;
 }
 
-char * parseRequest(request *req) {
+char *parseRequest(request *req, const char *cacheDir) {
 	char *tmp = NULL, *savePtr = NULL, *finder = NULL;
 	req->postProcessBuffer = (char *)malloc(strlen(req->originalBuffer) + 1);
 
@@ -111,7 +111,9 @@ char * parseRequest(request *req) {
 
 FILE * forwardRequest(request *req, struct cache *cache) {
 	int sock, bytesCopied = 0, bytesSent, totalReceived = 0, bytesReceived;
-	char socketBuffer[MAXBUF], fileName[PATH_MAX];
+	long contentLength = 0, headerSize = 0;
+	char socketBuffer[MAXBUF], fileName[PATH_MAX], *lengthHeaderLocation, *eol, tmp, *endOfHeader;
+	const char *headerStr = "Content-Length: ";
 	FILE *returnFile = NULL;
 	struct sockaddr_in *server;
 	struct addrinfo *infoResults;
@@ -123,11 +125,41 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 		return NULL;
 	}
 
+	char *blackListName = "/blacklist";
+	char *bFN = malloc(strlen(cache->cacheDirectory) + strlen(blackListName) + 1);
+	strcpy(bFN, cache->cacheDirectory);
+	strcat(bFN, blackListName);
+	FILE *blacklist = fopen(bFN, "r");
+	free(bFN);
+
+	int found = 0;
+	if (blacklist != NULL) {
+		char lineBuf[MAXLINE];
+		char ip[INET6_ADDRSTRLEN];
+		while (fgets(lineBuf, MAXLINE, blacklist) && !found) {
+			trimSpace(lineBuf);
+			if (isdigit(lineBuf[0])) {
+				inet_ntop(infoResults->ai_family, &((struct sockaddr_in *)infoResults->ai_addr)->sin_addr,
+						ip, INET6_ADDRSTRLEN);
+				found = strcmp(lineBuf, ip);
+			} else {
+				found = strcmp(lineBuf, req->host) == 0;
+			}
+		}
+		fclose(blacklist);
+	}
+
+	if (found == 1) {
+		freeaddrinfo(infoResults);
+		return (FILE *)1;
+	}
+
+
 	// open returnFile
 	bzero(fileName, PATH_MAX);
 	snprintf(fileName, PATH_MAX, "%s/%s", cache->cacheDirectory, req->requestHash);
 
-	if ((returnFile = fopen(fileName, "w+")) == NULL) {
+	if ((returnFile = fopen(fileName, "w")) == NULL) {
 		perror("failed opening new cache file");
 		freeaddrinfo(infoResults);
 		return NULL;
@@ -147,7 +179,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 
 	// connect socket
 	if (connect(sock, (struct sockaddr *)server, infoResults->ai_addrlen) < 0) {
-		fprintf(stderr, "Failed to connect to destination %s: %s\n", req->host, strerror(errno));
+		fprintf(stderr, "Failed to connect to destination %s: %s\n", req->requestPath, strerror(errno));
 		fclose(returnFile);
 		freeaddrinfo(infoResults);
 		close(sock);
@@ -157,7 +189,7 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 	// forward request
 	do {
 		bzero(socketBuffer, MAXBUF);
-		strcpy(socketBuffer, req->originalBuffer + bytesCopied);
+		memcpy(socketBuffer, req->originalBuffer + bytesCopied, strlen(req->originalBuffer + bytesCopied));
 
 		bytesSent = send(sock, socketBuffer, strlen(socketBuffer), 0);
 		if (bytesSent < 0) {
@@ -172,6 +204,21 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 		bzero(socketBuffer, MAXBUF);
 		bytesReceived = recv(sock, socketBuffer, MAXBUF, 0);
 
+		if (endOfHeader == NULL && (endOfHeader = strstr(socketBuffer, "\r\n\r\n")) != NULL) {
+			tmp = endOfHeader[4];
+			endOfHeader[4] = '\0';
+			headerSize = strlen(socketBuffer);
+			endOfHeader[4] = tmp;
+		}
+		// TODO: Deal with HTTP/1.1 transfer encoding chunked.
+		if ((lengthHeaderLocation = strstr(socketBuffer, headerStr)) != NULL) {
+			if ((eol = strstr(lengthHeaderLocation + strlen(headerStr), "\r\n")) != NULL) {
+				eol[0] = '\0';  // finish line
+				contentLength = atol(lengthHeaderLocation + strlen(headerStr));
+				eol[0] = '\r';
+			}
+		}
+
 		if (bytesReceived < 0) {
 			perror("Error reading response");
 		} else {
@@ -179,12 +226,15 @@ FILE * forwardRequest(request *req, struct cache *cache) {
 			fwrite(socketBuffer, sizeof(char), bytesReceived, returnFile);
 		}
 
-	} while (bytesReceived == MAXBUF);
+	} while (bytesReceived == MAXBUF || totalReceived < (contentLength + headerSize));
 	close(sock);
-	fseek(returnFile, 0, SEEK_SET);
+	fclose(returnFile);
+	returnFile = fopen(fileName, "r");
+
 	freeaddrinfo(infoResults);
 
 	addToCache(req->requestHash, cache);
+	printf("Added %s (%s) to cache\n", req->requestPath, req->requestHash);
 	return returnFile;
 }
 
@@ -217,7 +267,7 @@ struct addrinfo * hostnameLookup(char *hostname, struct cache *cache) {
 
 	// hints setup
 	bzero(&hints, sizeof(struct addrinfo));
-	hints.ai_family = AF_UNSPEC;
+	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 
 	pthread_mutex_lock(cache->hostnameMutex);

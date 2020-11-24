@@ -25,13 +25,19 @@ struct cache {
 	int timeout;
 };
 
+struct destructionArgs {
+	struct cache *c;
+	cacheEntry *cEntry;
+	int doDetach;
+};
+
 struct cache *initCache(int timeout);
 
 void addToCache(char *requestHash, struct cache *cache);
 
 FILE *cacheLookup(char *requestHash, struct cache *cache, int lockEnabled);
 
-void deleteCacheEntry(char *requestHash, struct cache *cache);
+void * deleteCacheEntry(void *dArgs);
 
 void clearCache(struct cache *cache);
 

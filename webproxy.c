@@ -50,6 +50,8 @@ int main(int argc, char **argv) {
 
 	// register signal handler
 	signal(SIGINT, interruptHandler);
+	signal(SIGPIPE, SIG_IGN);
+
 
 	// check for incorrect usage
 	if (argc != 2 && argc != 3) {
@@ -90,6 +92,19 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	char *blackListName = "/blacklist";
+	char *bFN = malloc(strlen(cache->cacheDirectory) + strlen(blackListName) + 1);
+	strcpy(bFN, cache->cacheDirectory);
+	strcat(bFN, blackListName);
+	FILE *blacklist = fopen(bFN, "w");
+	free(bFN);
+
+	if (blacklist != NULL) {
+		const char *initBlacklist = "www.facebook.com\nwww.instagram.com\n34.102.136.180\n";
+		fwrite(initBlacklist, sizeof(char), strlen(initBlacklist), blacklist);
+		fclose(blacklist);
+	}
+
 	// while SIGINT not received
 	while (!killed) {
 		connfdp = (int *)malloc(sizeof(int));
@@ -112,6 +127,7 @@ int main(int argc, char **argv) {
 		else
 			free(connfdp);
 	}
+	printf("Ending proxy...\n");
 
 	// join all threads
 	for (index = 0; index < threadCount; index++)
@@ -136,17 +152,23 @@ void *thread(void *vargp) {
 
 	if (readRequest(connfd, req) == NULL) {  // receive data from client
 		send(connfd, errorMessage, strlen(errorMessage), 0);
-	} else if (parseRequest(req) == NULL) {  // parse data from client into readable format
+	} else if (parseRequest(req, tps->cache->cacheDirectory) == NULL) {  // parse data from client into readable format
 		send(connfd, errorMessage, strlen(errorMessage), 0);
 		free(req->originalBuffer);
 		free(req->requestHash);
 	} else {
 		// check if in cache
 		if ((serverResponse = cacheLookup(req->requestHash, tps->cache, LOCK_ENABLED)) == NULL) {  // cache lookup failed
+			printf("Requesting %s (%s)\n", req->requestPath, req->requestHash);
 			serverResponse = forwardRequest(req, tps->cache);
+			if ((int)serverResponse == 1) {
+				send(connfd, "403 FORBIDDEN", strlen("403 FORBIDDEN"), 0);
+			}
+		} else {
+			printf("Found %s (%s) in cache\n", req->requestPath, req->requestHash);
 		}
 
-		if (serverResponse != NULL)
+		if (serverResponse != NULL && (int)serverResponse != 1)
 			sendResponse(connfd, serverResponse);
 
 		free(req->originalBuffer);
