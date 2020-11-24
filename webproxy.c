@@ -11,14 +11,11 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
-#include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <semaphore.h>
 
 #include "macro.h"
 #include "request.h"
-#include "md5.h"
+#include "cache.h"
 
 static volatile int killed = 0;
 
