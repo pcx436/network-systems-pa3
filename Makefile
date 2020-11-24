@@ -1,11 +1,11 @@
 CC=gcc
-CFLAGS=-I. -Wall -Werror -g 
+CFLAGS=-I. -Wall -g
 
-default: server
+default: webproxy
 
-server: server.o
-	$(CC) -o server server.o -lpthread
+webproxy: webproxy.c
+	$(CC) -o webproxy md5.h macro.h request.h cache.h md5.c request.c cache.c webproxy.c -lpthread -lm
 
 clean:
-	rm server.o
-	rm server
+	rm *.o
+	rm webproxy
